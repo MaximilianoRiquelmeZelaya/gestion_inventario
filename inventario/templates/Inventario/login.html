@@ -1,0 +1,88 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    /* 1. Ocultar la barra de navegación que viene heredada de base.html */
+    nav, .navbar, header {
+        display: none !important;
+    }
+
+    /* 2. Fondo corporativo directo, sin animaciones y con el nuevo gradiente */
+    body {
+        background: linear-gradient(rgba(56, 8, 18, 0.9), rgba(105, 15, 35, 0.90)), 
+                    url('{% static "inventario/images/fondo-login.jpg" %}');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+
+    /* 3. Logo flotante en la esquina superior izquierda */
+    .logo-esquina {
+        position: absolute;
+        top: 25px;
+        left: 35px;
+        max-width: 180px; /* Puedes ajustar este tamaño según tu logo */
+        z-index: 1000;
+    }
+
+    /* 4. Asegurar que los contenedores base no bloqueen el fondo */
+    main, .container, .container-fluid {
+        background-color: transparent !important;
+    }
+</style>
+
+<img src="{% static 'inventario/images/logo.png' %}" alt="Logo Corporativo" class="logo-esquina">
+
+<div class="row justify-content-center align-items-center m-0" style="min-height: 80vh;">
+    <div class="col-md-5 col-lg-4">
+        
+        <div class="text-center mb-4">
+            <img src="{% static 'inventario/images/candado.svg' %}" style="filter: brightness(0) invert(1);" class="mb-3" width="45">
+            <h3 class="fw-bold text-white mb-1">Acceso al Sistema</h3>
+            <p class="text-white-50 small">Ingresa tus credenciales corporativas</p>
+        </div>
+        
+        <div class="card shadow-lg border-0 bg-body-tertiary p-4 rounded-4" style="background-color: rgba(var(--bs-body-bg-rgb), 0.95) !important;">
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert bg-danger-subtle text-danger-emphasis border-danger-subtle py-2 small fw-bold text-center rounded-3 mb-3">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="POST" action="{% url 'login' %}">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary small">Usuario</label>
+                    <input type="text" name="usuario" class="form-control form-control-lg bg-body text-body border-secondary-subtle shadow-sm" value="{{ usuario_intentado|default:'' }}" required autofocus>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary small">Contraseña</label>
+                    <div class="input-group shadow-sm">
+                        <input type="password" id="inputPassword" name="password" class="form-control form-control-lg bg-body text-body border-secondary-subtle" required>
+                        <button class="btn btn-outline-secondary bg-body border-secondary-subtle d-flex align-items-center px-3" type="button" id="btnTogglePass" title="Mostrar/Ocultar contraseña" disabled>
+                            <img src="{% static 'inventario/images/ojo.svg' %}" id="iconoOjo" width="18" class="icono-tema" style="opacity: 0.2;">
+                        </button>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn w-100 btn-lg fw-bold shadow-sm" style="background-color: rgb(253, 45, 69); color: white;">Ingresar</button>
+            </form>
+        </div>
+        
+    </div>
+</div>
+
+<script>
+    // Exportamos las URLs seguras de Django al JS
+    const URL_OJO = "{% static 'inventario/images/ojo.svg' %}";
+    const URL_OJO_TACHADO = "{% static 'inventario/images/ojo-tachado.svg' %}";
+</script>
+<script src="{% static 'inventario/js/login.js' %}"></script>
+{% endblock %}

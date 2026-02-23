@@ -1,0 +1,251 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    .sortable-grid .col-md-4.is-reordering { border: 2px dashed #0d6efd; background-color: var(--bs-secondary-bg); border-radius: 8px; padding: 10px; cursor: grab; }
+    .col-hidden { display: none !important; }
+    
+    /* CORRECCIÓN Z-INDEX PARA DROPDOWNS Y STICKY HEADERS */
+    .sticky-top { z-index: 1020 !important; }
+    .dropdown-menu { z-index: 1050 !important; }
+    
+    /* CURSOR PARA TABLA EDITABLE */
+    .tabla-editable tbody tr { cursor: pointer; transition: background-color 0.2s; }
+    .tabla-editable tbody tr:hover { background-color: rgba(var(--bs-warning-rgb), 0.1) !important; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 mt-2">
+    <h2 class="mb-0 fw-bold text-body d-flex align-items-center">
+        <img src="{% static 'inventario/images/caja.svg' %}" class="icono-tema me-3" width="32"> Inventario: {{ selected_coll }}
+    </h2>
+    {% if vista_actual == 'ver' and selected_db and selected_coll %}
+        <a href="{% url 'exportar_excel' selected_db selected_coll %}" class="btn btn-success shadow-sm fw-bold">Exportar a Excel</a>
+    {% endif %}
+</div>
+
+{% if vista_actual == 'ver' %}
+<div class="card bg-body-tertiary border-0 shadow-sm p-3 mb-4 text-start">
+    
+    <div class="mb-3 d-flex align-items-center">
+        <img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema me-2" width="22">
+        <input type="text" id="buscadorGlobal" class="form-control border-primary shadow-sm" placeholder="Buscar en todo el inventario (Ej: nombre, lote, estado)..." onkeyup="filtrarTabla('tablaInventarioVer', 'buscadorGlobal')">
+    </div>
+
+    <div class="table-responsive" style="min-height: 400px;">
+        <table class="table table-hover border mb-0 text-start" id="tablaInventarioVer">
+            <thead class="bg-body-secondary border-bottom border-2 sticky-top">
+                <tr>
+                    {% for c in campos_tabla %}
+                        <th class="align-middle border-end border-secondary-subtle" style="min-width: 140px;">
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span class="fw-bold text-truncate pe-1" style="font-size: 0.85rem;" title="{{ c.alias }}">{{ c.alias }}</span>
+                                <div class="dropdown d-flex align-items-center">
+                                    <span class="text-secondary opacity-50 fs-6 me-2">|</span>
+                                    <button class="btn btn-sm p-0 border-0 text-decoration-none" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Filtrar columna">
+                                        <img src="{% static 'inventario/images/filtro.svg' %}" alt="Filtro" width="12" height="12" style="opacity: 0.8;" class="icono-tema">
+                                    </button>
+                                    <ul class="dropdown-menu shadow-sm p-2 border-secondary" id="filtro-col-{{ forloop.counter0 }}" style="max-height: 250px; overflow-y: auto; min-width: 200px;"></ul>
+                                </div>
+                            </div>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in productos %}
+                <tr class="fila-dato">
+                    {% for valor in p.valores %}
+                        <td>{{ valor }}</td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr id="filaVacia"><td colspan="{{ campos_tabla|length }}" class="text-center text-muted py-4">No hay registros en esta bodega.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if vista_actual == 'crear' and puede_editar %}
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary text-start">
+    <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+        <h5 class="fw-bold text-body mb-0 d-flex align-items-center">
+            <img src="{% static 'inventario/images/caja.svg' %}" class="icono-tema me-2" width="20"> Añadir Nuevo Registro
+        </h5>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary fw-bold" id="btnToggleOrder" onclick="toggleReorderMode()">Reordenar Campos</button>
+            <button type="button" class="btn btn-sm btn-success d-none fw-bold" id="btnSaveOrder" onclick="guardarOrdenPreferido()">Guardar Orden</button>
+        </div>
+    </div>
+    <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="crear"><input type="hidden" name="vista_actual" value="crear">
+        <div class="row g-3 sortable-grid">
+            {% for c in campos_formulario %}
+                {% if c.tipo != 'calc_stock' and c.tipo != 'calc_venc' %}
+                <div class="col-md-4">
+                    <label class="small fw-bold">{{ c.alias }}</label>
+                    <input type="{% if c.tipo == 'date' %}text{% else %}{{ c.tipo }}{% endif %}" name="campo_{{ c.nombre }}" class="form-control {% if c.tipo == 'date' %}input-fecha{% endif %}" {% if c.nombre == 'Producto' %}required{% endif %}>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary mt-4 fw-bold w-100">Guardar Registro</button>
+    </form>
+</div>
+{% endif %}
+
+{% if vista_actual == 'editar' and puede_editar %}
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary text-start">
+    <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+        <h5 class="fw-bold text-body mb-0 d-flex align-items-center">
+            <img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-2" width="20"> Modificar Registros
+        </h5>
+        
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                👁️ Ver Columnas
+            </button>
+            <ul class="dropdown-menu shadow-sm p-3 border-0" style="min-width: 250px;">
+                <li class="small fw-bold text-muted mb-2">Selecciona qué datos ver en la lista:</li>
+                {% for c in campos_tabla %}
+                    <li>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="col_vis_{{ forloop.counter0 }}" checked onchange="toggleColumna('{{ forloop.counter0 }}')">
+                            <label class="form-check-label small" for="col_vis_{{ forloop.counter0 }}">{{ c.alias }}</label>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="mb-3 d-flex align-items-center">
+        <img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema me-2" width="22">
+        <input type="text" id="buscadorEditar" class="form-control border-warning shadow-sm" placeholder="Buscar producto para editar..." onkeyup="filtrarTabla('tablaInventarioEditar', 'buscadorEditar')">
+    </div>
+
+    <div class="table-responsive border rounded bg-body" style="max-height: 500px; min-height: 400px;">
+        <table class="table table-hover mb-0 align-middle tabla-editable" id="tablaInventarioEditar">
+            <thead class="bg-warning-subtle text-dark border-bottom border-warning sticky-top">
+                <tr>
+                    {% for c in campos_tabla %}
+                        <th class="col-idx-{{ forloop.counter0 }} align-middle border-end border-secondary-subtle" style="min-width: 140px;">
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span class="fw-bold text-truncate pe-1">{{ c.alias }}</span>
+                                <div class="dropdown d-flex align-items-center">
+                                    <span class="text-dark opacity-25 fs-6 me-2">|</span>
+                                    <button class="btn btn-sm p-0 border-0 text-decoration-none" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                        <img src="{% static 'inventario/images/filtro.svg' %}" width="12" style="opacity: 0.8; filter: brightness(0);">
+                                    </button>
+                                    <ul class="dropdown-menu shadow-sm p-2 border-secondary" id="filtro-edit-col-{{ forloop.counter0 }}" style="max-height: 250px; overflow-y: auto; min-width: 200px;"></ul>
+                                </div>
+                            </div>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in productos %}
+                <tr class="fila-dato" onclick="abrirModalEditar('{{ p.id }}', this)" data-json='{{ p.raw_json|safe }}'>
+                    {% for valor in p.valores %}
+                        <td class="col-idx-{{ forloop.counter0 }} small fw-semibold">{{ valor }}</td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr><td colspan="100%" class="text-center py-4 text-muted">No hay registros para editar.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditarRegistro" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                    <img src="{% static 'inventario/images/tuerca.svg' %}" class="me-2" width="20" style="filter: brightness(0);"> 
+                    Editando: <span id="tituloModalProducto" class="ms-2 fst-italic">...</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-body-tertiary">
+                <form method="POST" id="formEditarDinamico">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="editar">
+                    <input type="hidden" name="vista_actual" value="editar">
+                    <input type="hidden" name="doc_id" id="input_doc_id">
+                    
+                    <div class="row g-3 sortable-grid">
+                        {% for c in campos_formulario %}
+                            {% if c.tipo != 'calc_stock' and c.tipo != 'calc_venc' %}
+                            <div class="col-md-4">
+                                <label class="small fw-bold text-secondary">{{ c.alias }}</label>
+                                <input type="{% if c.tipo == 'date' %}text{% else %}{{ c.tipo }}{% endif %}" 
+                                       name="campo_{{ c.nombre }}" 
+                                       data-campo-nombre="{{ c.nombre }}"
+                                       class="form-control fw-bold border-secondary-subtle {% if c.tipo == 'date' %}input-fecha{% endif %}"
+                                       {% if c.nombre == 'Producto' %}required{% endif %}>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mt-4 text-end border-top pt-3">
+                        <button type="button" class="btn btn-secondary fw-bold me-2" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning fw-bold shadow-sm px-4">💾 Guardar Cambios</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if vista_actual == 'borrar' and request.user.rol in 'admin,superuser' %}
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary text-start">
+    <h5 class="fw-bold text-body mb-3 border-bottom pb-2 d-flex align-items-center">
+        <img src="{% static 'inventario/images/basurero.svg' %}" class="me-2" width="20"> Eliminar Registros
+    </h5>
+    <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="borrar"><input type="hidden" name="vista_actual" value="borrar">
+        <table class="table border">
+            <thead class="bg-body-secondary"><tr><th>Borrar?</th><th>Producto</th></tr></thead>
+            <tbody>
+                {% for p in productos %}<tr><td><input class="form-check-input" type="checkbox" name="delete_ids" value="{{ p.id }}"></td><td class="fw-bold">{{ p.nombre_producto }}</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-danger mt-3 fw-bold w-100 d-flex justify-content-center align-items-center" data-bs-toggle="modal" data-bs-target="#borrarModal">
+            <img src="{% static 'inventario/images/basurero.svg' %}" width="18" class="me-2" style="filter: brightness(0) invert(1);"> Eliminar Seleccionados
+        </button>
+        
+        <div class="modal fade" id="borrarModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">Confirmación de Seguridad</h5></div>
+              <div class="modal-body">
+                <p>Para borrar permanentemente, ingresa tu clave de administrador:</p>
+                <input type="password" name="password_confirm" class="form-control border-danger" required>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-danger fw-bold">Confirmar Borrado</button>
+              </div>
+            </div>
+          </div>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const URL_GUARDAR_ORDEN = "{% url 'guardar_orden_form' %}";
+    const SELECTED_DB = "{{ selected_db }}";
+</script>
+<script src="{% static 'inventario/js/inventario.js' %}"></script>
+{% endblock %}

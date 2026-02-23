@@ -1,0 +1,259 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<h2 class="mb-4 fw-bold"><img src="{% static 'inventario/images/mensaje.svg' %}" class="icono-tema me-2 mb-1" width="32"> Gestión de Solicitudes</h2>
+
+<div class="card p-4 mb-4 bg-body-tertiary border-0 shadow-sm">
+    <h5 class="fw-bold text-body mb-3">NUEVA SOLICITUD DE INSUMO</h5>
+    
+    <form method="POST" id="formNuevaSolicitud" class="row g-3 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="crear_solicitud">
+        
+        <div class="col-md-3">
+            <label class="small fw-bold text-body">1. Origen (Pedir a)</label>
+            <select name="req_origen" id="req_origen" class="form-select form-select-sm" onchange="cargarInsumos(); validarDestino();" required>
+                <option value="">Seleccione Origen...</option>
+                {% for db_name, cols in menu_navegacion.items %}
+                    <optgroup label="{{ db_name }}">
+                        {% for c in cols %}<option value="{{ db_name }}|{{ c }}"> {{ c }}</option>{% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="small fw-bold text-body">2. Insumo requerido</label>
+            <select name="req_insumo" id="req_insumo" class="form-select form-select-sm" disabled required>
+                <option value="">Seleccione Origen primero...</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="small fw-bold">3. Destino (Entregar en)</label>
+            <select name="req_destino" id="req_destino" class="form-select form-select-sm" onchange="validarDestino()" required>
+                <option value="">Seleccione Destino...</option>
+                {% for db_name, cols in menu_navegacion.items %}
+                    <optgroup label="{{ db_name }}">
+                        {% for c in cols %}<option value="{{ db_name }}|{{ c }}">{{ c }}</option>{% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-1">
+            <label class="small fw-bold">Cant.</label>
+            <input type="number" name="req_cantidad" id="req_cantidad" class="form-control form-control-sm" min="1" required>
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-primary btn-sm w-100 fw-bold" onclick="abrirModalConfirmacionEnvio()">
+                <img src="{% static 'inventario/images/mensaje.svg' %}" class="me-1 mb-1" width="16" style="filter: brightness(0) invert(1);"> Enviar Solicitud
+            </button>
+        </div>
+        <div class="col-12 mt-2">
+            <input type="text" name="req_comentario" class="form-control form-control-sm" placeholder="Comentario opcional (Ej: Urgente para taller...)">
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="modalConfirmarSolicitud" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">Confirmar Solicitud de Traspaso</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-start">
+                <p class="text-muted small mb-3">Revisa los datos del movimiento antes de emitir la orden:</p>
+                <ul class="list-group list-group-flush mb-3 shadow-sm">
+                    <li class="list-group-item bg-body-tertiary">
+                        <img src="{% static 'inventario/images/caja.svg' %}" width="16" class="me-1 opacity-75"> <strong>Insumo:</strong> <span id="conf_insumo" class="text-primary fw-bold"></span>
+                    </li>
+                    <li class="list-group-item bg-body-tertiary">
+                        <img src="{% static 'inventario/images/lista.svg' %}" width="16" class="me-1 opacity-75"> <strong>Cantidad Solicitada:</strong> <span id="conf_cantidad" class="badge bg-primary"></span>
+                    </li>
+                    <li class="list-group-item text-danger">
+                        <strong>Origen:</strong> <span id="conf_origen"></span>
+                    </li>
+                    <li class="list-group-item text-success">
+                        <strong>Destino:</strong> <span id="conf_destino"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="modal-footer bg-body-secondary">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Corregir Datos</button>
+                <button type="button" class="btn btn-primary fw-bold shadow-sm" onclick="confirmarYEnviar()">Confirmar y Enviar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card bg-body-tertiary border-0 shadow-sm table-responsive">
+    <table class="table table-hover border mb-0">
+        <thead class="bg-body-secondary">
+            <tr>
+                <th>Fecha y Usuario</th>
+                <th>Ruta (Origen → Destino)</th>
+                <th>Insumo y Cantidad</th>
+                <th>Estado</th>
+                <th style="min-width: 200px;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in solicitudes %}
+            <tr>
+                <td>
+                    <span class="small text-muted">{{ s.fecha_creacion|date:"d M Y, H:i" }}</span><br>
+                    <strong><img src="{% static 'inventario/images/persona.svg' %}" class="icono-tema me-1" width="14"> {{ s.solicitante.username }}</strong>
+                </td>
+                <td class="small">
+                    <span class="text-primary fw-bold">[{{ s.db_origen }}]</span> {{ s.bodega_origen }}<br>
+                    <span class="text-secondary opacity-100 fw-bold fs-5">&darr;</span><br>
+                    <span class="text-success fw-bold">[{{ s.db_destino }}]</span> {{ s.bodega_destino }}
+                </td>
+                <td>
+                    <span class="fw-bold">{{ s.insumo }}</span><br>
+                    <span class="badge bg-secondary fs-6">Cantidad Original: {{ s.cantidad }}</span>
+                </td>
+                
+                <td class="align-middle text-left">
+                    {% if 'Parcial' in s.estado %}
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/check.svg' %}" width="14" class="me-1" style="filter: brightness(0) invert(1);"> {{ s.estado }}</span>
+                    {% elif s.estado == 'Pendiente' %}
+                        <span class="badge bg-warning text-dark fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/reloj.svg' %}" width="14" class="me-1"> Pendiente</span>
+                    {% elif s.estado == 'Aprobada' %}
+                        <span class="badge bg-success fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/check.svg' %}" width="14" class="me-1" style="filter: brightness(0) invert(1);"> Aprobada</span>
+                    {% elif s.estado == 'Modificada' %}
+                        <span class="badge bg-info text-dark fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/tuerca.svg' %}" width="14" class="me-1"> Modificada</span>
+                    {% elif s.estado == 'Rechazada' %}
+                        <span class="badge bg-danger fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/alerta.svg' %}" width="14" class="me-1" style="filter: brightness(0) invert(1);"> Rechazada</span>
+                    {% elif s.estado == 'Recepcionada' %}
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/check.svg' %}" width="14" class="me-1" style="filter: brightness(0) invert(1);"> Recepcionada</span>
+                    {% elif s.estado == 'Cancelada' %}
+                        <span class="badge bg-secondary fs-6 px-3 py-2 shadow-sm"><img src="{% static 'inventario/images/alerta.svg' %}" width="14" class="me-1" style="filter: brightness(0) invert(1);"> Cancelada</span>
+                    {% endif %}
+                    
+                    {% if s.comentario %}<br><small class="text-muted d-block mt-2">"{{ s.comentario }}"</small>{% endif %}
+                </td>
+
+                <td class="align-middle">
+                    <div class="d-flex flex-column gap-1">
+                        
+                        {% if s.estado == 'Pendiente' and user.rol in 'admin, superuser' %}
+                            <form method="POST" class="mb-0 w-100">
+                                {% csrf_token %}<input type="hidden" name="action" value="procesar_solicitud"><input type="hidden" name="req_id" value="{{ s.id }}">
+                                
+                                <select name="nuevo_estado" class="form-select form-select-sm fw-bold border-primary mb-1" onchange="toggleMod(this, '{{ s.id }}')" required>
+                                    <option value="">Decidir...</option>
+                                    <option value="Aprobada">Aprobar</option>
+                                    <option value="Modificada">Modificar</option>
+                                    <option value="Rechazada">Rechazar</option>
+                                </select>
+                                
+                                <div id="mod_box_{{ s.id }}" style="display:none;" class="p-2 border border-warning bg-warning-subtle rounded mb-1">
+                                    <label class="small fw-bold">Origen:</label>
+                                    <select name="mod_origen" class="form-select form-select-sm mb-1">
+                                        <option value="{{ s.db_origen }}|{{ s.bodega_origen }}">Mantener ({{ s.bodega_origen }})</option>
+                                        {% for ob in s.otras_bodegas %}<option value="{{ ob.db }}|{{ ob.nombre }}">Cambiar a: {{ ob.nombre }} (Stock: {{ ob.stock }})</option>{% endfor %}
+                                    </select>
+                                    <label class="small fw-bold">Cantidad:</label>
+                                    <input type="number" name="mod_cantidad" value="{{ s.cantidad }}" class="form-control form-control-sm">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold mb-1">Confirmar</button>
+                            </form>
+                        {% endif %}
+
+                        {% if s.estado == 'Aprobada' or s.estado == 'Modificada' %}
+                            
+                            {% if s.puede_recepcionar %}
+                                <button type="button" class="btn btn-sm btn-success w-100 fw-bold shadow-sm mb-1" data-bs-toggle="modal" data-bs-target="#modalRec_{{ s.id }}">
+                                    <img src="{% static 'inventario/images/check.svg' %}" width="16" class="me-1" style="filter: brightness(0) invert(1);"> Recepcionar
+                                </button>
+
+                                <div class="modal fade" id="modalRec_{{ s.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-success text-white">
+                                                <h5 class="modal-title fw-bold d-flex align-items-center">
+                                                    <img src="{% static 'inventario/images/caja.svg' %}" width="20" class="me-2" style="filter: brightness(0) invert(1);"> Confirmar Recepción de Insumo
+                                                </h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST">
+                                                <div class="modal-body text-start">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="recepcionar">
+                                                    <input type="hidden" name="req_id" value="{{ s.id }}">
+                                                    
+                                                    <div class="bg-body-tertiary p-3 rounded mb-3 border">
+                                                        <p class="mb-1"><strong>Producto en tránsito:</strong> {{ s.insumo }}</p>
+                                                        <p class="mb-1"><strong>Origen:</strong> {{ s.bodega_origen }}</p>
+                                                        <p class="mb-0 fs-5"><strong>Cantidad Esperada:</strong> <span class="badge bg-primary">{{ s.cantidad }}</span></p>
+                                                    </div>
+                                                    
+                                                    <label class="small fw-bold mb-1 text-primary">¿Cuál es el estado de la entrega?</label>
+                                                    <select name="decision_recepcion" class="form-select fw-bold border-success mb-3" onchange="toggleRecepcionParcial(this, '{{ s.id }}')" required>
+                                                        <option value="completo">Llegó la cantidad pedida ({{ s.cantidad }} unid.)</option>
+                                                        <option value="parcial">Llegó parcialmente (Modificar cantidad)</option>
+                                                        <option value="cancelar">Cancelar solicitud definitivamente</option>
+                                                    </select>
+                                                    
+                                                    <div id="parcial_box_{{ s.id }}" style="display:none;" class="p-3 border border-warning bg-warning-subtle rounded shadow-sm">
+                                                        <label class="small fw-bold text-dark">Cantidad realmente recibida en destino:</label>
+                                                        <input type="number" name="cantidad_recibida" class="form-control mb-1" max="{{ s.cantidad }}" min="1">
+                                                        <small class="text-danger fw-bold">Solo se descontará este número del origen.</small>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer bg-body-tertiary">
+                                                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+                                                    <button type="submit" class="btn btn-success fw-bold">Confirmar</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <button type="button" class="btn btn-sm btn-secondary w-100 fw-bold mb-1 d-flex align-items-center justify-content-center" disabled>
+                                    <img src="{% static 'inventario/images/reloj.svg' %}" width="16" class="me-2" style="filter: brightness(0) invert(1);"> En tránsito
+                                </button>
+                            {% endif %}
+                            
+                        {% endif %}
+
+                        {% if s.estado == 'Pendiente' or s.estado == 'Aprobada' or s.estado == 'Modificada' %}
+                            
+                            {% if user == s.solicitante or user.rol in 'admin, superuser' %}
+                                <form method="POST" class="mb-0 mt-1" onsubmit="return confirm('¿Seguro que deseas cancelar esta solicitud?');">
+                                    {% csrf_token %}<input type="hidden" name="action" value="cancelar_solicitud"><input type="hidden" name="req_id" value="{{ s.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 fw-bold d-flex align-items-center justify-content-center">
+                                        <img src="{% static 'inventario/images/alerta.svg' %}" width="16" class="me-1"> Cancelar
+                                    </button>
+                                </form>
+                            {% endif %}
+                            
+                        {% endif %}
+
+                        {% if user.rol in 'admin, superuser' %}
+                            {% if s.estado == 'Recepcionada' or s.estado == 'Rechazada' or s.estado == 'Cancelada' or 'Parcial' in s.estado %}
+                                <form method="POST" class="text-left mt-2" onsubmit="return confirm('¿Borrar registro permanentemente? Esta acción no se puede deshacer.');">
+                                    {% csrf_token %}<input type="hidden" name="action" value="borrar_solicitud"><input type="hidden" name="req_id" value="{{ s.id }}">
+                                    <button type="submit" class="btn btn-link text-danger p-0 fw-bold" style="font-size: 0.95rem; text-decoration: none;">
+                                        <img src="{% static 'inventario/images/basurero.svg' %}" class="me-1 mb-1" width="16"> Eliminar
+                                    </button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
+                        
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-4 text-muted">No hay solicitudes en el historial.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'inventario/js/solicitudes.js' %}"></script>
+{% endblock %}

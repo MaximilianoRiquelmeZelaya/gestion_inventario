@@ -1,0 +1,223 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="{{ user.tema|default:'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        body { font-family: "Source Sans Pro", sans-serif; }
+        
+        @media all and (min-width: 992px) {
+            .navbar .dropdown:hover > .dropdown-menu { display: block; margin-top: 0; }
+            .navbar .dropdown > .dropdown-menu { display: none; }
+        }
+
+        .drag-handle { cursor: grab; text-align: center; color: var(--bs-secondary-color); }
+        .drag-handle:active { cursor: grabbing; }
+
+        .navbar-custom {
+            background: linear-gradient(rgba(33, 37, 41, 0.85), rgba(33, 37, 41, 0.85)), 
+                        url("{% static 'inventario/images/fondo.jpg' %}") center/cover no-repeat;
+        }
+
+        [data-bs-theme="dark"] .icono-tema { filter: invert(1) brightness(2); }
+        .icono-navbar { filter: invert(1) brightness(2); }
+        
+        /* Asegurar que las notificaciones flotantes estén siempre arriba */
+        .toast-container { z-index: 9999; }
+    </style>
+</head>
+<body class="bg-body">
+
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand fw-bold d-flex align-items-center" href="{% url 'inventario' %}">
+            <img src="{% static 'inventario/images/logo.png' %}" alt="Logo Corporativo" width="64" height="64" class="me-2 rounded shadow-sm p-1">
+            Inventarios
+        </a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuNavegacionGlobal">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="menuNavegacionGlobal">
+            
+            {% if user.is_authenticated %}
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center">
+                
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center {% if request.resolver_match.url_name == 'inventario' %}active fw-bold{% endif %}" href="{% url 'inventario' %}?vista=ver" onclick="window.location.href=this.href;" role="button" data-bs-toggle="dropdown" aria-expanded="false"><img src="{% static 'inventario/images/caja.svg' %}" class="icono-navbar me-1" width="16"> Inventario</a>
+                    <ul class="dropdown-menu shadow-sm">
+                        <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=ver">Ver Inventario</a></li>
+                        {% if puede_editar %}
+                            <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=crear">Crear Registro</a></li>
+                            <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=editar">Editar Registros</a></li>
+                            {% if user.rol == 'admin' or user.rol == 'superuser' %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{% url 'inventario' %}?vista=borrar">Eliminar Registros</a></li>
+                            {% endif %}
+                        {% endif %}
+                    </ul>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'solicitudes' %}active fw-bold{% endif %}" href="{% url 'solicitudes' %}" onclick="window.location.href=this.href;" role="button">
+                        <img src="{% static 'inventario/images/mensaje.svg' %}" class="icono-navbar me-2" width="18">Solicitudes
+                    </a>
+                </li>
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center {% if request.resolver_match.url_name == 'registros' %}active fw-bold{% endif %}" href="{% url 'registros' %}?vista=ver" onclick="window.location.href=this.href;" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="{% static 'inventario/images/portapapeles.svg' %}" width="16" class="icono-navbar me-2"> Registros
+                    </a>
+                    
+                    <ul class="dropdown-menu shadow-sm">
+                        <li><a class="dropdown-item" href="{% url 'registros' %}?vista=crear">Crear Registro</a></li>
+                        <li><a class="dropdown-item" href="{% url 'registros' %}?vista=ver">Ver Registros</a></li>
+                        {% if user.rol == 'admin' or user.rol == 'superuser' %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-primary fw-bold" href="{% url 'registros' %}?vista=verificar">Verificar Registros</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link d-flex align-items-center {% if request.resolver_match.url_name == 'historial' %}active fw-bold{% endif %}" href="{% url 'historial' %}"><img src="{% static 'inventario/images/reloj.svg' %}" class="icono-navbar me-1" width="16">Historial</a>
+                </li>
+
+                {% if user.rol == 'admin' or user.rol == 'superuser' %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center {% if request.resolver_match.url_name == 'gestion_bd' %}active fw-bold{% endif %}" href="{% url 'gestion_bd' %}?vista=crear_db" onclick="window.location.href=this.href;" role="button" data-bs-toggle="dropdown" aria-expanded="false"><img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-navbar me-1" width="16"> Arquitectura BD</a>
+                    <ul class="dropdown-menu shadow-sm">
+                        <li><a class="dropdown-item" href="{% url 'gestion_bd' %}?vista=crear_db">Crear Nueva Base de Datos</a></li>
+                        <li><a class="dropdown-item" href="{% url 'gestion_bd' %}?vista=crear_bodega">Crear Nueva Colección</a></li>
+                        <li><a class="dropdown-item d-flex align-items-center" href="{% url 'gestion_bd' %}?vista=importar">Importar desde Excel</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'gestion_bd' %}?vista=editar_bd">Editar Arquitectura Actual</a></li>
+                    </ul>
+                </li>
+                
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center {% if 'usuarios' in request.resolver_match.url_name %}active fw-bold{% endif %}" href="{% url 'usuarios' %}?vista=ver" onclick="window.location.href=this.href;" role="button" data-bs-toggle="dropdown" aria-expanded="false"><img src="{% static 'inventario/images/grupo.svg' %}" class="icono-navbar me-1" width="16"> Usuarios</a>
+                    <ul class="dropdown-menu shadow-sm">
+                        <li><a class="dropdown-item" href="{% url 'usuarios' %}?vista=ver">Directorio de Usuarios</a></li>
+                        <li><a class="dropdown-item" href="{% url 'usuarios' %}?vista=crear">Crear Nuevo Usuario</a></li>
+                    </ul>
+                </li>
+                {% endif %}
+                
+            </ul>
+
+            <ul class="navbar-nav ms-auto d-flex align-items-center">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle fw-bold text-white d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="badge {% if user.rol == 'admin' or user.rol == 'superuser' %}bg-primary{% else %}bg-success{% endif %} me-2">{{ user.rol|upper }}</span>
+                        <img src="{% static 'inventario/images/persona.svg' %}" class="icono-navbar me-1" width="20"> {{ user.username }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li><a class="dropdown-item d-flex align-items-center" href="{% url 'configuracion' %}"><img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-2" width="16"> Preferencias</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger d-flex align-items-center" href="{% url 'logout' %}"><img src="{% static 'inventario/images/salir.svg' %}" class="icono-tema me-2" width="16"> Cerrar Sesión</a></li>
+                    </ul>
+                </li>
+            </ul>
+            {% endif %}
+            </div>
+    </div>
+</nav>
+
+{% if user.is_authenticated and request.resolver_match.url_name != 'configuracion' and request.resolver_match.url_name != 'login' %}
+<div class="bg-body-tertiary border-bottom py-2 shadow-sm mb-4">
+    <div class="container-fluid px-4">
+        <form method="GET" class="d-flex align-items-center gap-3">
+            <input type="hidden" name="vista" value="{{ request.GET.vista|default:'ver' }}">
+            
+            <span class="small fw-bold text-body">ENTORNO ACTIVO:</span>
+            
+            <select name="db" class="form-select form-select-sm w-auto fw-bold" onchange="this.form.submit()">
+                {% for db_name in menu_navegacion.keys %}
+                    <option value="{{ db_name }}" {% if db_name == selected_db %}selected{% endif %}>{{ db_name }}</option>
+                {% empty %}
+                    <option value="">(Sin BD)</option>
+                {% endfor %}
+            </select>
+            
+            <span class="text-muted">/</span>
+            
+            <select name="bodega" class="form-select form-select-sm w-auto fw-bold" onchange="this.form.submit()">
+                {% for db_name, cols in menu_navegacion.items %}
+                    {% if db_name == selected_db %}
+                        {% for c in cols %}
+                            <option value="{{ c }}" {% if c == selected_coll %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+            </select>
+            
+            {% if selected_coll %}
+                {% if not puede_editar %}
+                    <span class="badge bg-warning text-dark ms-auto">Solo Lectura</span>
+                {% else %}
+                    <span class="badge bg-success ms-auto">Modo Edición Activo</span>
+                {% endif %}
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="toast-container position-fixed top-0 end-0 p-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="toast align-items-center text-bg-{% if message.tags == 'error' %}danger{% else %}success{% endif %} border-0 mb-2 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+                <div class="d-flex align-items-center p-2">
+                    <div class="toast-body fw-bold fs-6 d-flex align-items-center">
+                        {% if message.tags == 'error' %}
+                            <img src="{% static 'inventario/images/alerta.svg' %}" width="24" class="me-2" style="filter: brightness(0) invert(1);">
+                        {% else %}
+                            <img src="{% static 'inventario/images/check.svg' %}" width="24" class="me-2" style="filter: brightness(0) invert(1);">
+                        {% endif %}
+                        {{ message }}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<div class="container-fluid px-4 {% if request.resolver_match.url_name == 'login' %}mt-5{% endif %}">
+    {% block content %}
+    {% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+
+<script>
+    // 1. Aplicar Tema del Sistema si está configurado así
+    if ("{{ user.tema }}" === "system") {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-bs-theme', 'light');
+        }
+    }
+
+    // 2. NUEVO: Inicializar las notificaciones flotantes (Toasts) para que aparezcan
+    document.addEventListener('DOMContentLoaded', function () {
+        var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+        var toastList = toastElList.map(function (toastEl) {
+            return new bootstrap.Toast(toastEl);
+        });
+        // Mostrar todas las notificaciones pendientes
+        toastList.forEach(toast => toast.show());
+    });
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

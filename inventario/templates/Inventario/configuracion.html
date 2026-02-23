@@ -1,0 +1,102 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 mt-4">
+    <img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-3" width="32">
+    <h2 class="fw-bold mb-0">Preferencias del Usuario</h2>
+</div>
+
+<div class="row g-4 text-start">
+    
+    <div class="col-md-6">
+        <div class="card p-4 bg-body-tertiary border-0 shadow-sm h-100">
+            <div class="d-flex align-items-center mb-4 border-bottom border-2 border-secondary-subtle pb-2">
+                <span class="fs-4 me-2">🎨</span>
+                <h5 class="fw-bold text-body mb-0">PREFERENCIAS GENERALES</h5>
+            </div>
+            
+            <p class="text-muted small mb-4">Personaliza la interfaz y el comportamiento inicial del sistema para tu cuenta.</p>
+            
+            <form method="POST" class="d-flex flex-column h-100">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="actualizar_preferencias">
+                
+                <div class="mb-3">
+                    <label class="fw-bold small mb-1 text-secondary">Tema de la Interfaz</label>
+                    <select name="tema" class="form-select fw-bold border-secondary-subtle shadow-sm">
+                        <option value="light" {% if user.tema == 'light' %}selected{% endif %}>Claro</option>
+                        <option value="dark" {% if user.tema == 'dark' %}selected{% endif %}>Oscuro</option>
+                        <option value="system" {% if user.tema == 'system' %}selected{% endif %}>Sincronizar con el PC</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="fw-bold small mb-1 text-secondary">Pantalla de Inicio por Defecto</label>
+                    <select name="pantalla_inicio" class="form-select fw-bold border-secondary-subtle shadow-sm">
+                        <option value="inventario" {% if user.pagina_inicio == 'inventario' %}selected{% endif %}>Inventario</option>
+                        <option value="solicitudes" {% if user.pagina_inicio == 'solicitudes' %}selected{% endif %}>Solicitudes</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="fw-bold small mb-1 text-secondary">Colección Inicial Automática</label>
+                    <select name="entorno_pref" class="form-select fw-bold border-secondary-subtle shadow-sm">
+                        <option value="">(Ninguna / Usar la primera disponible)</option>
+                        {% for db_name, cols in menu_navegacion.items %}
+                            <optgroup label="Base de Datos: {{ db_name }}">
+                                {% for c in cols %}
+                                    <option value="{{ db_name }}|{{ c }}" {% if user.db_preferida == db_name and user.bodega_preferida == c %}selected{% endif %}>
+                                        Colección: {{ c }}
+                                    </option>
+                                {% endfor %}
+                            </optgroup>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted d-block mt-2">Esta colección se cargará por defecto al entrar a la ventana de Inventario.</small>
+                </div>
+
+                <div class="mt-auto text-end">
+                    <button type="submit" class="btn btn-secondary fw-bold px-4 shadow-sm">Guardar Preferencias</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card p-4 bg-body-tertiary border-0 shadow-sm h-100">
+            <div class="d-flex align-items-center mb-4 border-bottom border-2 border-secondary-subtle pb-2">
+                <img src="{% static 'inventario/images/persona.svg' %}" class="icono-tema me-2" width="24">
+                <h5 class="fw-bold text-body mb-0">SEGURIDAD DE LA CUENTA</h5>
+            </div>
+            
+            <p class="text-muted small mb-4">Actualiza tu contraseña de acceso regularmente. Tu cuenta es <strong>{{ user.username }}</strong> y tu rol es <strong class="text-uppercase text-secondary">{{ user.rol }}</strong>.</p>
+            
+            <form method="POST" class="d-flex flex-column h-100">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="actualizar_password">
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <label class="fw-bold small mb-1 text-secondary">Contraseña Actual</label>
+                        <input type="password" name="current_pass" class="form-control border-secondary-subtle" required placeholder="Ingresa tu clave actual para verificar...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="fw-bold small mb-1 text-secondary">Nueva Contraseña</label>
+                        <input type="password" name="new_pass" class="form-control border-secondary-subtle" required placeholder="Escribe tu nueva clave...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="fw-bold small mb-1 text-secondary">Confirmar Nueva Contraseña</label>
+                        <input type="password" name="confirm_pass" class="form-control border-secondary-subtle" required placeholder="Repite la nueva clave...">
+                    </div>
+                </div>
+                
+                <div class="mt-auto text-end">
+                    <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">Actualizar Contraseña</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

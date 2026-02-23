@@ -1,0 +1,153 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 mt-2">
+    <h2 class="fw-bold mb-0 d-flex align-items-center">
+        <img src="{% static 'inventario/images/reloj.svg' %}" class="icono-tema me-3" width="32"> Historial de Cambios
+    </h2>
+    {% if request.user.rol == 'superuser' %}
+        <button class="btn btn-outline-danger shadow-sm fw-bold" id="btnBorrarHistorial" data-bs-toggle="modal" data-bs-target="#modalBorrarHistorial" disabled>
+            <img src="{% static 'inventario/images/basurero.svg' %}" width="16" class="icono-tema me-1"> Eliminar Registros
+        </button>
+    {% endif %}
+</div>
+
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary">
+    
+    <div class="row g-3 mb-4 bg-body p-3 rounded border shadow-sm mx-0">
+        <div class="col-md-7">
+            <label class="small fw-bold text-secondary">Filtrar por Rango de Fechas</label>
+            <div class="input-group border-secondary-subtle shadow-sm">
+                <input type="date" id="filtroHistorialInicio" class="form-control border-secondary-subtle" onchange="filtrarHistorial()">
+                <span class="input-group-text bg-body-secondary border-secondary-subtle">hasta</span>
+                <input type="date" id="filtroHistorialFin" class="form-control border-secondary-subtle" onchange="filtrarHistorial()">
+            </div>
+        </div>
+        <div class="col-md-5 d-flex align-items-end gap-2">
+            <button class="btn btn-outline-secondary w-25 shadow-sm" onclick="limpiarFiltrosHistorial()">Limpiar</button>
+            <input type="text" id="buscadorHistorial" class="form-control w-75 border-primary shadow-sm" placeholder="Buscar acción, usuario, BD..." onkeyup="filtrarHistorial()">
+        </div>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="borrar_historial">
+        
+        <div class="modal fade" id="modalBorrarHistorial" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-body-secondary border-bottom border-danger">
+                        <h5 class="modal-title fw-bold text-danger">⚠️ Depurar Historial</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-body-tertiary text-start">
+                        <p class="small text-body mb-3">Estás a punto de borrar registros de auditoría de forma permanente.</p>
+                        <label class="fw-bold small mb-1 text-secondary">Firma Electrónica (Tu clave):</label>
+                        <input type="password" name="password_confirm" class="form-control fw-bold border-danger shadow-sm" required placeholder="Ingresar contraseña...">
+                    </div>
+                    <div class="modal-footer bg-body-tertiary border-top-0">
+                        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger fw-bold shadow-sm">Depurar Datos</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive border rounded bg-body shadow-sm" style="max-height: 700px; min-height: 450px;">
+            <table class="table table-hover table-sm align-middle mb-0" id="tablaHistorial">
+                <thead class="bg-body-secondary text-secondary sticky-top border-bottom border-2">
+                    <tr>
+                        {% if request.user.rol == 'superuser' %}
+                        <th style="width: 40px;" class="text-center bg-body-secondary"><input type="checkbox" class="form-check-input border-secondary-subtle" onchange="toggleAllHistorial(this)"></th>
+                        {% endif %}
+                        <th style="width: 140px;">
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span>Tipo</span>
+                                <div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" width="12" class="icono-tema opacity-50"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-hist-{% if request.user.rol == 'superuser' %}1{% else %}0{% endif %}"></ul></div>
+                            </div>
+                        </th>
+                        <th style="min-width: 300px;">Cambio Realizado</th>
+                        <th>
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span>Usuario</span>
+                                <div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" width="12" class="icono-tema opacity-50"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-hist-{% if request.user.rol == 'superuser' %}3{% else %}2{% endif %}"></ul></div>
+                            </div>
+                        </th>
+                        <th style="width: 100px;">Fecha</th>
+                        <th style="width: 80px;">Hora</th>
+                        <th>
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span>Base</span>
+                                <div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" width="12" class="icono-tema opacity-50"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-hist-{% if request.user.rol == 'superuser' %}6{% else %}5{% endif %}"></ul></div>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span>Colección</span>
+                                <div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" width="12" class="icono-tema opacity-50"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-hist-{% if request.user.rol == 'superuser' %}7{% else %}6{% endif %}"></ul></div>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in historial_completo %}
+                    <tr class="fila-historial" data-fecha="{{ h.fecha|date:'Y-m-d' }}">
+                        {% if request.user.rol == 'superuser' %}
+                        <td class="text-center"><input type="checkbox" name="delete_ids" value="{{ h.id }}" class="form-check-input check-borrar-hist border-secondary" onchange="validarBotonBorrarHist()"></td>
+                        {% endif %}
+                        <td class="fw-bold small">
+                            {% if h.tipo_cambio == 'modificación' %}<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle w-100 py-2">Modificación</span>
+                            {% elif h.tipo_cambio == 'eliminación' %}<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle w-100 py-2">Eliminación</span>
+                            {% elif h.tipo_cambio == 'creación' %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle w-100 py-2">Creación</span>
+                            {% elif h.tipo_cambio == 'solicitud' %}<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle w-100 py-2">Solicitud</span>
+                            {% elif h.tipo_cambio == 'registros' %}<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle w-100 py-2">Registros</span>
+                            {% elif h.tipo_cambio == 'importación' %}<span class="badge bg-secondary text-white border border-secondary w-100 py-2">Importación</span>
+                            {% endif %}
+                        </td>
+                        <td class="small pe-3 text-body">
+                            {{ h.detalle_cambio }}
+                            {% if h.datos_extra %}
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-2 py-0 px-2 fw-bold border-0 text-decoration-underline" onclick="verDetallesEliminado('{{ h.datos_extra|escapejs }}')">Ver Detalles</button>
+                            {% endif %}
+                        </td>
+                        <td class="small fw-bold text-secondary">{{ h.usuario }}</td>
+                        <td class="small text-body-secondary">{{ h.fecha|date:"d/m/Y" }}</td>
+                        <td class="small text-body-secondary">{{ h.hora|time:"H:i" }}</td>
+                        <td class="small fw-bold text-body">{{ h.base }}</td>
+                        <td class="small fw-bold text-body-secondary">{{ h.coleccion }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center py-5 text-muted fw-bold">El historial está vacío.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="modalDetallesJSON" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-body">
+            <div class="modal-header bg-body-secondary border-bottom border-secondary-subtle">
+                <h5 class="modal-title fw-bold text-body">Detalles del Evento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-body-tertiary">
+                <p class="small text-body-secondary">Datos técnicos registrados durante esta acción:</p>
+                <pre id="jsonViewer" class="bg-dark text-white p-3 rounded small overflow-auto shadow-inner" style="max-height: 400px; font-family: monospace;"></pre>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top-0">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const ES_SUPERUSER = "{{ request.user.rol }}" === "superuser";
+</script>
+<script src="{% static 'inventario/js/historial.js' %}"></script>
+{% endblock %}

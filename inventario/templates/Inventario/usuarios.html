@@ -1,0 +1,284 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <img src="{% static 'inventario/images/grupo.svg' %}" class="icono-tema me-3" width="32">
+    <h2 class="fw-bold mb-0">Gestión de Usuarios</h2>
+</div>
+
+<ul class="nav nav-tabs mb-4 border-secondary-subtle">
+    <li class="nav-item">
+        <a class="nav-link d-flex align-items-center {% if vista_actual == 'ver' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=ver">
+            <img src="{% static 'inventario/images/persona.svg' %}" class="icono-tema me-2" width="16"> Directorio de Usuarios
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link d-flex align-items-center {% if vista_actual == 'crear' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=crear">
+            <span class="fs-5 me-1" style="line-height: 0.5;">+</span> Nuevo Usuario
+        </a>
+    </li>
+</ul>
+
+<div class="card p-4 bg-body-tertiary border-0 shadow-sm">
+
+    {% if vista_actual == 'crear' %}
+    <h5 class="fw-bold text-primary mb-3">REGISTRAR NUEVO USUARIO</h5>
+    <p class="text-muted small mb-4">Crea credenciales de acceso y asigna permisos logísticos específicos a las bodegas.</p>
+    
+    <form method="POST" class="row g-4 text-start">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="guardar_usuario">
+        
+        <div class="col-md-4">
+            <label class="fw-bold small mb-1 text-secondary">Nombre de Usuario</label>
+            <input type="text" name="u_name" class="form-control fw-bold border-secondary-subtle" required placeholder="Ej: j.perez">
+        </div>
+
+        <div class="col-md-4">
+            <label class="fw-bold small mb-1 text-secondary">Rol en el Sistema</label>
+            <select name="u_role" id="select_rol_nuevo" class="form-select fw-bold border-secondary-subtle" onchange="alternarPermisos('caja_permisos_nuevo', this.value)" required>
+                <option value="usuario" selected>Usuario Estándar</option>
+                <option value="admin">Administrador Global</option>
+                {% if request.user.rol == 'superuser' %}
+                    <option value="superuser">Super Usuario</option>
+                {% endif %}
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label class="fw-bold small mb-1 text-secondary">Contraseña de Acceso</label>
+            <div class="alert bg-body-secondary border-secondary-subtle small shadow-sm py-2 mb-0 d-flex align-items-center h-100">
+                <img src="{% static 'inventario/images/candado.svg' %}" width="16" class="icono-tema me-2">
+                <span>Asignación automática: <strong>agrotop{% now "Y" %}</strong></span>
+            </div>
+        </div>
+
+        <div class="col-12" id="caja_permisos_nuevo">
+            <label class="fw-bold small mb-2 text-secondary">Permisos de Edición y Recepción por Colección</label>
+            <div class="p-3 bg-body border rounded shadow-sm d-flex flex-wrap gap-3">
+                {% for coll in colecciones_globales %}
+                    <div class="form-check form-switch">
+                        <input class="form-check-input border-secondary" type="checkbox" name="u_permisos" value="{{ coll }}" id="perm_nuevo_{{ coll }}">
+                        <label class="form-check-label fw-semibold" for="perm_nuevo_{{ coll }}">
+                            <img src="{% static 'inventario/images/caja.svg' %}" class="icono-tema me-1" width="14"> {{ coll }}
+                        </label>
+                    </div>
+                {% empty %}
+                    <span class="text-muted small">No hay colecciones creadas en la arquitectura.</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="col-12 text-end mt-4">
+            <button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">Crear Usuario</button>
+        </div>
+    </form>
+
+    {% elif vista_actual == 'ver' %}
+    <div class="table-responsive">
+        <table class="table table-hover border mb-0 bg-body text-start">
+            <thead class="bg-body-secondary border-bottom border-2">
+                <tr>
+                    <th class="py-3 px-3">Usuario</th>
+                    <th class="py-3 px-3">Rol Global</th>
+                    <th class="py-3 px-3">Permisos Logísticos (colecciones)</th>
+                    <th class="py-3 px-3">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios_app %}
+                <tr class="align-middle">
+                    <td class="px-3 fw-bold">
+                        <img src="{% static 'inventario/images/persona.svg' %}" class="icono-tema me-2" width="18"> {{ u.username }}
+                    </td>
+                    
+                    <td class="px-3">
+                        {% if u.rol == 'superuser' %}
+                            <span class="badge bg-danger fs-6 px-3 py-2 shadow-sm">SUPER USUARIO</span>
+                        {% elif u.rol == 'admin' %}
+                            <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">ADMINISTRADOR</span>
+                        {% else %}
+                            <span class="badge bg-success fs-6 px-3 py-2 shadow-sm">USUARIO</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td class="px-3">
+                        {% if u.rol == 'admin' or u.rol == 'superuser' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary fw-bold px-3 py-2 shadow-sm d-inline-flex align-items-center">
+                                <img src="{% static 'inventario/images/tuerca.svg' %}" class="me-2" width="14" style="filter: invert(30%) sepia(80%) saturate(1500%) hue-rotate(200deg);"> 
+                                Acceso Global Total
+                            </span>
+                        {% else %}
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for p in u.permisos_colecciones %}
+                                    <span class="badge bg-body-tertiary border text-secondary fw-semibold">
+                                        <img src="{% static 'inventario/images/caja.svg' %}" class="icono-tema me-1 opacity-75" width="12">{{ p }}
+                                    </span>
+                                {% empty %}
+                                    <span class="text-muted small">Sin permisos de escritura. (Solo lectura)</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </td>
+                    
+                    <td class="px-3">
+                        <div class="d-flex justify-content-start gap-2">
+                            
+                            {% if u.rol == 'superuser' and request.user.rol != 'superuser' %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-bold px-3 py-2 d-inline-flex align-items-center">
+                                    <img src="{% static 'inventario/images/candado.svg' %}" width="14" class="icono-tema me-1"> Restringido
+                                </span>
+                            {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm bg-body" data-bs-toggle="modal" data-bs-target="#modalEditar_{{ u.id }}">
+                                    Editar
+                                </button>
+                            {% endif %}
+                            
+                            {% if request.user.rol == 'superuser' and u.id != request.user.id %}
+                                <button type="button" class="btn btn-sm btn-link text-danger p-0 fw-bold d-flex align-items-center" onclick="abrirModalBorrarUsuario('{{ u.id }}', '{{ u.username }}')" title="Eliminar Usuario" style="text-decoration: none;">
+                                    <img src="{% static 'inventario/images/basurero.svg' %}" width="16" class="me-1">
+                                </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+
+                <div class="modal fade" id="modalEditar_{{ u.id }}" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-body-secondary">
+                                <h5 class="modal-title fw-bold">
+                                    <img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-2" width="20"> Editar Usuario: {{ u.username }}
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" class="text-start">
+                                <div class="modal-body bg-body-tertiary">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="guardar_usuario">
+                                    <input type="hidden" name="u_id" value="{{ u.id }}">
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="fw-bold small mb-1 text-secondary">Nombre de Usuario</label>
+                                            <input type="text" name="u_name" class="form-control fw-bold" value="{{ u.username }}" required>
+                                        </div>
+                                        
+                                        <div class="col-md-6">
+                                            <label class="fw-bold small mb-1 text-secondary">Rol en el Sistema</label>
+                                            <select name="u_role" id="select_rol_{{ u.id }}" class="form-select fw-bold" onchange="alternarPermisos('caja_permisos_{{ u.id }}', this.value)">
+                                                <option value="usuario" {% if u.rol == 'usuario' %}selected{% endif %}>Usuario Estándar</option>
+                                                <option value="admin" {% if u.rol == 'admin' %}selected{% endif %}>Administrador Global</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-md-12 mt-3">
+                                            {% if request.user.rol == 'superuser' %}
+                                                <label class="fw-bold small mb-1 text-secondary">Seguridad (Acción de Super Usuario)</label>
+                                                <button type="button" class="btn btn-sm btn-outline-danger w-100 fw-bold shadow-sm bg-body" onclick="abrirModalRestablecerPass('{{ u.id }}', '{{ u.username }}')" data-bs-dismiss="modal">
+                                                    <img src="{% static 'inventario/images/candado.svg' %}" width="14" class="icono-tema me-1"> Restablecer contraseña por defecto (agrotop{% now "Y" %})
+                                                </button>
+                                            {% else %}
+                                                <div class="alert bg-body-secondary border-secondary-subtle small shadow-sm text-muted mb-0">
+                                                    <img src="{% static 'inventario/images/alerta.svg' %}" class="icono-tema me-1" width="14"> Solo un Super Usuario puede restablecer contraseñas o eliminar accesos.
+                                                </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="col-12 mt-3 {% if u.rol == 'admin' %}d-none{% endif %}" id="caja_permisos_{{ u.id }}">
+                                            <label class="fw-bold small mb-2 text-secondary">Actualizar Permisos de Colecciones</label>
+                                            <div class="p-3 bg-body border rounded shadow-sm d-flex flex-wrap gap-3">
+                                                {% for coll in colecciones_globales %}
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input border-secondary" type="checkbox" name="u_permisos" value="{{ coll }}" id="edit_perm_{{ u.id }}_{{ coll }}" {% if coll in u.permisos_colecciones %}checked{% endif %}>
+                                                        <label class="form-check-label fw-semibold" for="edit_perm_{{ u.id }}_{{ coll }}">
+                                                            {{ coll }}
+                                                        </label>
+                                                    </div>
+                                                {% empty %}
+                                                    <span class="text-muted small">No hay colecciones disponibles.</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer bg-body-secondary">
+                                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary fw-bold shadow-sm">Guardar Cambios</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+</div>
+
+<div class="modal fade" id="modalBorrarUsuario" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold">⚠️ Revocar Acceso de Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" class="text-start">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="borrar_usuario">
+                    <input type="hidden" name="borrar_u_id" id="input_borrar_u_id">
+                    
+                    <div class="alert alert-warning border-warning shadow-sm">
+                        <p class="mb-0 fs-6 text-body">Estás a punto de eliminar permanentemente al usuario: <br><strong id="texto_nombre_usuario" class="fs-5"></strong></p>
+                    </div>
+                    
+                    <p class="text-danger fw-bold small mb-3">Esta persona perderá inmediatamente todo acceso al sistema ERP.</p>
+                    
+                    <label class="fw-bold small mb-1 text-secondary">Tu Contraseña de Administrador:</label>
+                    <input type="password" name="password_confirm" class="form-control fw-bold border-danger" required placeholder="Firma electrónica para autorizar...">
+                </div>
+                <div class="modal-footer bg-body-tertiary">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger fw-bold shadow-sm">Eliminar Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalRestablecerPass" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-body-secondary border-bottom border-danger">
+                <h5 class="modal-title fw-bold text-danger">⚠️ Restablecer Contraseña</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" class="text-start">
+                <div class="modal-body bg-body-tertiary">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="restablecer_password">
+                    <input type="hidden" name="reset_u_id" id="input_reset_u_id">
+                    
+                    <p class="small text-body mb-3">La cuenta <strong id="texto_reset_usuario"></strong> volverá a tener la contraseña genérica de acceso.</p>
+                    
+                    <label class="fw-bold small mb-1 text-secondary">Firma Electrónica (Tu clave):</label>
+                    <input type="password" name="password_confirm" class="form-control fw-bold border-danger shadow-sm" required>
+                </div>
+                <div class="modal-footer bg-body-tertiary border-top-0">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger fw-bold shadow-sm">Confirmar Restablecimiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'inventario/js/usuarios.js' %}"></script>
+{% endblock %}

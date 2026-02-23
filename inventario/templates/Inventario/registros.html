@@ -1,0 +1,324 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    /* Estilo para que el Switch de Estatus se vuelva rojo cuando está en "NC" */
+    .form-switch .form-check-input.switch-nc:checked {
+        background-color: var(--bs-danger);
+        border-color: var(--bs-danger);
+    }
+</style>
+
+<div class="d-flex align-items-center mb-4 mt-2">
+    <img src="{% static 'inventario/images/portapapeles.svg' %}" class="icono-tema me-3" width="32">
+    <h2 class="fw-bold mb-0">Control y Registros</h2>
+</div>
+
+<ul class="nav nav-tabs mb-4 border-secondary-subtle">
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'crear' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=crear">Nuevo Registro</a></li>
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'ver' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=ver">Ver Registros</a></li>
+    {% if user.rol in 'admin, superuser' %}
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'verificar' %}active fw-bold bg-body-tertiary border-bottom-0 text-primary{% else %}text-secondary{% endif %}" href="?vista=verificar">Verificar Registros</a></li>
+    {% endif %}
+</ul>
+
+{% if vista_actual == 'crear' %}
+<div class="position-sticky top-0 bg-body-tertiary p-3 shadow-sm mb-4 border rounded" style="z-index: 1030;">
+    <div class="row align-items-end g-3">
+        <div class="col-md-3">
+            <label class="small fw-bold text-secondary mb-1">Nombre Monitor</label>
+            <input type="text" id="inputMonitorGlobal" class="form-control fw-bold border-secondary-subtle shadow-sm" placeholder="Ej: Juan Pérez" oninput="sincronizarMonitor()">
+        </div>
+        <div class="col-md-3 text-center">
+            <button class="btn btn-outline-secondary fw-bold shadow-sm w-100" data-bs-toggle="modal" data-bs-target="#modalHistorial">
+                <img src="{% static 'inventario/images/reloj.svg' %}" width="16" class="icono-tema me-1"> Ver Historial Acciones Local
+            </button>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="?vista=crear" class="btn btn-secondary fw-bold shadow-sm me-2">Cancelar</a>
+            <button type="button" class="btn btn-primary fw-bold shadow-sm px-4" onclick="enviarFormularioRegistro()">
+                <img src="{% static 'inventario/images/guardar.svg' %}" width="16" class="me-1" style="filter: brightness(0) invert(1);"> Confirmar y Guardar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4 bg-body-tertiary border-0 shadow-sm">
+    <div class="row g-3 mb-4 bg-body-secondary p-3 rounded mx-0">
+        <div class="col-md-3"><label class="small fw-bold">Base de Datos</label><select class="form-select border-secondary-subtle" onchange="window.location.href='?vista=crear&db='+this.value">{% for db in menu_navegacion.keys %}<option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="small fw-bold">Colección a Inspeccionar</label><select class="form-select border-secondary-subtle" onchange="window.location.href='?vista=crear&db={{ selected_db }}&bodega='+this.value">{% for coll in colecciones_db %}<option value="{{ coll }}" {% if coll == selected_coll %}selected{% endif %}>{{ coll }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><label class="small fw-bold text-muted">Mapear 'Ubicación'</label><select id="mapUbicacion" class="form-select form-select-sm border-secondary-subtle" onchange="remapearColumnas()"><option value="">(Dejar vacío)</option>{% for c in campos_disponibles %}<option value="{{ c }}" {% if c == 'Ubicación' or c == 'Ubicacion' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><label class="small fw-bold text-muted">Mapear 'Equipo'</label><select id="mapEquipo" class="form-select form-select-sm border-secondary-subtle" onchange="remapearColumnas()">{% for c in campos_disponibles %}<option value="{{ c }}" {% if c == 'Producto' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><label class="small fw-bold text-muted">Mapear 'Cantidad'</label><select id="mapCantidad" class="form-select form-select-sm border-secondary-subtle" onchange="remapearColumnas()">{% for c in campos_disponibles %}<option value="{{ c }}" {% if c == 'Stock Actual' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+    </div>
+
+    <div class="mb-3 d-flex align-items-center"><img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema me-2" width="22"><input type="text" id="buscadorRegistro" class="form-control border-secondary-subtle shadow-sm" placeholder="Buscar equipo específico en la tabla..." onkeyup="filtrarTablaRegistro()"></div>
+
+    <form method="POST" id="formCrearRegistro">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="guardar_registro">
+        <input type="hidden" name="db_origen" value="{{ selected_db }}"><input type="hidden" name="coll_origen" value="{{ selected_coll }}">
+        <input type="hidden" name="nombre_monitor" id="formMonitorGlobal" required>
+        <input type="hidden" name="campo_cantidad_origen" id="formCampoCantidad">
+        <input type="hidden" name="datos_json" id="inputDatosJSON">
+
+        <div class="table-responsive border rounded bg-body" style="max-height: 600px; min-height: 400px;">
+            <table class="table table-hover table-sm align-middle mb-0" id="tablaRegistro">
+                <thead class="bg-body-secondary sticky-top border-bottom border-2 text-body">
+                    <tr>
+                        <th class="text-center" style="width: 70px;"><div class="small fw-bold text-body-secondary mb-1">Rev.</div><input class="form-check-input border-secondary-subtle" type="checkbox" title="Marcar todos" onchange="toggleAllRevisado(this)"></th>
+                        <th style="width: 120px;" class="bg-body-tertiary border-start border-end border-secondary-subtle"><div class="d-flex justify-content-between align-items-center w-100"><span>Estatus</span><div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" class="icono-tema" width="12" style="opacity: 0.5;"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-reg-col-1"></ul></div></div></th>
+                        <th style="min-width: 120px;"><div class="d-flex justify-content-between align-items-center w-100"><span>Ubicación</span><div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" class="icono-tema" width="12" style="opacity: 0.5;"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-reg-col-2"></ul></div></div></th>
+                        <th style="min-width: 200px;"><div class="d-flex justify-content-between align-items-center w-100"><span>Equipo</span><div class="dropdown"><button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"><img src="{% static 'inventario/images/filtro.svg' %}" class="icono-tema" width="12" style="opacity: 0.5;"></button><ul class="dropdown-menu shadow-sm p-2 bg-body" id="filtro-reg-col-3"></ul></div></div></th>
+                        <th style="width: 100px;">Cantidad</th>
+                        <th style="width: 250px;" class="bg-body-tertiary border-start border-secondary-subtle">Acción Correctiva</th>
+                        <th style="min-width: 200px;">Observación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in productos %}
+                    <tr class="fila-registro" data-json='{{ p.raw_json|safe }}'>
+                        <input type="hidden" class="val-doc-id" value="{{ p.id }}">
+                        <td class="text-center bg-body-tertiary"><input class="form-check-input border-secondary check-revisado input-tracker" type="checkbox" style="transform: scale(1.2);"></td>
+                        <td class="bg-body-tertiary border-start border-end border-secondary-subtle text-center py-2"><div class="form-check form-switch d-flex justify-content-center align-items-center mb-0" style="padding-left: 0;"><span class="small fw-bold text-success me-2 ms-1 lbl-estatus" style="min-width: 20px;">C</span><input class="form-check-input switch-nc input-tracker mt-0 mx-0 border-secondary-subtle" type="checkbox" role="switch" onchange="toggleFilaEstatus(this); actualizarFiltrosTablaRegistro();" style="width: 2.5em; height: 1.2em; cursor: pointer;"><input type="hidden" class="val-estatus" value="C"></div></td>
+                        <td><input type="text" class="form-control form-control-sm border-0 bg-transparent text-body dyn-ubicacion val-ubicacion" readonly></td>
+                        <td><input type="text" class="form-control form-control-sm border-0 bg-transparent fw-bold text-body-secondary dyn-equipo val-equipo" readonly></td>
+                        <td><input type="number" class="form-control form-control-sm border-secondary-subtle fw-bold text-body bg-body dyn-cantidad val-cantidad input-tracker"><input type="hidden" class="dyn-cantidad-orig val-cantidad-orig"></td>
+                        <td class="bg-body-tertiary border-start border-secondary-subtle"><div class="dropdown"><button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start text-truncate btn-accion-ui" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" disabled>Seleccionar...</button><ul class="dropdown-menu shadow p-2 bg-body text-body" style="width: 350px; z-index: 2000;"><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="1. Cambio Plástico/Vidrio/Cerámico" onchange="actualizarHiddenAccion(this)"> 1. Cambio Plástico, Vidrio o Cerámico.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="2. Cambio protección" onchange="actualizarHiddenAccion(this)"> 2. Cambio de la protección.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="3. Reposición piezas" onchange="actualizarHiddenAccion(this)"> 3. Reposición de piezas faltantes.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="4. Informar Jefaturas" onchange="actualizarHiddenAccion(this)"> 4. Informar a Jefe de Planta y Calidad.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="5. Detener Producción" onchange="actualizarHiddenAccion(this)"> 5. Detener Producción.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="6. Aislar producto" onchange="actualizarHiddenAccion(this)"> 6. Aislar producto afectado.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="7. Retirar producto" onchange="actualizarHiddenAccion(this)"> 7. Retirar producto afectado.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-accion input-tracker" value="8. Eliminación contaminado" onchange="actualizarHiddenAccion(this)"> 8. Eliminación producto contaminado.</label></li></ul><input type="hidden" class="val-acciones hidden-accion-resultado"></div></td>
+                        <td><input type="text" class="form-control form-control-sm bg-body text-body border-secondary-subtle val-observacion input-tracker" placeholder="Escribe aquí..."></td>
+                    </tr>
+                    {% empty %}<tr><td colspan="7" class="text-center py-4 text-muted">No hay equipos en esta colección.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="modalHistorial" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-body">
+            <div class="modal-header bg-body-secondary border-bottom border-secondary-subtle">
+                <h5 class="modal-title fw-bold text-body">
+                    <img src="{% static 'inventario/images/reloj.svg' %}" width="20" class="icono-tema me-1 mb-1"> 
+                    Historial Acciones Local (Registros NC)
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="modal-body bg-body-tertiary">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" id="buscadorModal" class="form-control bg-body text-body border-secondary-subtle shadow-sm" placeholder="Filtrar por equipo, monitor o texto..." onkeyup="filtrarTablaModal()">
+                    </div>
+                    <div class="col-md-3">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-body-secondary small fw-bold text-body-secondary border-secondary-subtle">Desde</span>
+                            <input type="date" id="fechaInicioModal" class="form-control bg-body text-body border-secondary-subtle" onchange="filtrarTablaModal()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-body-secondary small fw-bold text-body-secondary border-secondary-subtle">Hasta</span>
+                            <input type="date" id="fechaFinModal" class="form-control bg-body text-body border-secondary-subtle" onchange="filtrarTablaModal()">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-secondary shadow-sm w-100 fw-bold" onclick="limpiarFiltrosModal()">Limpiar</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive bg-body border rounded shadow-sm">
+                    <table class="table table-sm table-hover align-middle mb-0" id="tablaModalHistorial">
+                        <thead class="bg-body-secondary text-body-secondary">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monitor</th>
+                                <th>Ubicación</th>
+                                <th>Equipo</th>
+                                <th class="text-center">Cant.</th>
+                                <th class="text-center">Estatus</th>
+                                <th>Acción Correctiva</th>
+                                <th>Observación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for h in historial_acciones %}
+                            <tr class="fila-historial" data-fecha="{{ h.fecha_monitoreo|date:'Y-m-d' }}">
+                                <td class="small fw-bold text-body">{{ h.fecha_monitoreo|date:"d/m/Y" }}</td>
+                                <td class="small text-body">{{ h.nombre_monitor }}</td>
+                                <td class="small text-body-secondary">{{ h.ubicacion|default:"-" }}</td>
+                                <td class="small fw-bold text-body">{{ h.equipo }}</td>
+                                <td class="small text-center text-body">{{ h.cantidad }}</td>
+                                <td class="small text-center fw-bold {% if h.estatus == 'NC' %}text-danger{% else %}text-success{% endif %}">{{ h.estatus|default:"-" }}</td>
+                                <td class="small text-danger">{{ h.accion_correctiva|default:"-" }}</td>
+                                <td class="small text-body-secondary fst-italic">{{ h.observacion|default:"-" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-body-secondary py-4">No hay historial de registros recientes en esta colección.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>            
+{% endif %}
+
+{% if vista_actual == 'ver' %}
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary">
+    
+    <div class="row g-3 mb-4 bg-body-secondary p-3 rounded mx-0">
+        <div class="col-md-6">
+            <label class="small fw-bold">Base de Datos</label>
+            <select class="form-select border-secondary-subtle fw-bold" onchange="window.location.href='?vista=ver&db='+this.value">
+                {% for db in menu_navegacion.keys %}<option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="small fw-bold">Colección (Planta)</label>
+            <select class="form-select border-secondary-subtle fw-bold" onchange="window.location.href='?vista=ver&db={{ selected_db }}&bodega='+this.value">
+                {% for coll in colecciones_db %}<option value="{{ coll }}" {% if coll == selected_coll %}selected{% endif %}>{{ coll }}</option>{% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h5 class="fw-bold text-body mb-0 d-flex align-items-center"><img src="{% static 'inventario/images/portapapeles.svg' %}" class="icono-tema me-2" width="20"> Historial de Inspecciones</h5>
+        <div>
+            {% if user.rol in 'admin, superuser' %}
+            <button type="button" id="btnBorrarMasivo" class="btn btn-outline-danger fw-bold shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#modalBorrarMasivo" disabled>
+                <img src="{% static 'inventario/images/basurero.svg' %}" width="16" class="me-1"> Borrar Seleccionados
+            </button>
+            {% endif %}
+            <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalDescargarExcel">Descargar Reporte</button>
+        </div>
+    </div>
+    
+    <div class="mb-4 d-flex align-items-center"><img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema me-2" width="22"><input type="text" id="buscadorVerRegistros" class="form-control border-secondary-subtle shadow-sm" placeholder="Buscar por equipo, monitor, observación..." onkeyup="filtrarVerRegistros()"></div>
+
+    <form method="POST" id="formBorrarMasivo">
+        {% csrf_token %}
+        <input type="hidden" name="action" id="action_borrar_masivo" value="borrar_registros">
+
+        <div class="accordion shadow-sm" id="accRegistrosMes">
+            {% regroup registros by fecha_monitoreo|date:"Y - F" as registros_por_mes %}
+            
+            {% for mes in registros_por_mes %}
+            <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-bold bg-body text-body border-bottom" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ forloop.counter }}">
+                <img src="{% static 'inventario/images/calendario.svg' %}" width="18" class="icono-tema me-2">
+                Registros: {{ mes.grouper|upper }} <span class="badge bg-secondary ms-2">{{ mes.list|length }} regs.</span>
+            </button>
+                
+                <div id="collapse_{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#accRegistrosMes">
+                    <div class="accordion-body p-0 bg-body-tertiary">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm align-middle mb-0 tabla-ver-regs">
+                                <thead class="bg-body-secondary text-body-secondary">
+                                    <tr>
+                                        {% if user.rol in 'admin, superuser' %}
+                                        <th class="text-center" style="width: 40px;"><input type="checkbox" class="form-check-input border-secondary-subtle" title="Seleccionar mes" onchange="toggleGrupoBorrar(this, 'tbody_{{ forloop.counter }}')"></th>
+                                        {% endif %}
+                                        <th>Fecha</th><th>Monitor</th><th>Ubicación</th><th>Equipo</th><th class="text-center">Cant.</th><th class="text-center">Estatus</th><th>Acciones</th><th>Observación</th><th>Estado Verif.</th><th class="text-center">Editar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody_{{ forloop.counter }}">
+                                    {% for r in mes.list %}
+                                    <tr class="fila-ver-reg">
+                                        {% if user.rol in 'admin, superuser' %}
+                                        <td class="text-center"><input type="checkbox" name="delete_ids" value="{{ r.id }}" class="form-check-input check-borrar border-secondary" onchange="validarBotonBorrarMasivo()"></td>
+                                        {% endif %}
+                                        <td class="small fw-bold text-body">{{ r.fecha_monitoreo|date:"d/m/Y H:i" }}</td>
+                                        <td class="small text-body">{{ r.nombre_monitor }}</td>
+                                        <td class="small text-body-secondary">{{ r.ubicacion }}</td>
+                                        <td class="small fw-bold text-body">{{ r.equipo }}</td>
+                                        <td class="text-center small td-cant text-body">{{ r.cantidad }}</td>
+                                        <td class="text-center fw-bold small td-estatus {% if r.estatus == 'C' %}text-success{% else %}text-danger{% endif %}">{{ r.estatus }}</td>
+                                        <td class="small text-danger td-acciones">{{ r.accion_correctiva }}</td>
+                                        <td class="small td-obs text-body">{{ r.observacion }}</td>
+                                        <td class="small">
+                                            {% if r.estado_verificacion == 'Verificado' %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">Verificado</span><div class="text-body-secondary fst-italic mt-1" style="font-size: 0.75rem; line-height: 1;">{{ r.verificacion }}</div>{% else %}<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Pendiente</span>{% endif %}
+                                        </td>
+                                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="abrirModalEditarRegistro('{{ r.id }}', this)">Editar</button></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            
+            {% empty %}
+            <div class="alert bg-body-secondary text-center py-4 border">No hay registros guardados en esta colección.</div>
+            {% endfor %}
+        </div>
+
+        <div class="modal fade" id="modalBorrarMasivo" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-body"><div class="modal-header bg-body-secondary border-bottom border-danger"><h5 class="modal-title fw-bold text-danger">Confirmar Eliminación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-start bg-body-tertiary"><p class="text-danger fw-bold small mb-3">Estás a punto de borrar registros de inspección permanentemente.</p><label class="fw-bold small mb-1 text-secondary">Firma Electrónica (Contraseña):</label><input type="password" name="password_confirm" id="inputPassBorrar" class="form-control bg-body text-body fw-bold border-danger shadow-sm" placeholder="Ingresa clave para confirmar"></div><div class="modal-footer bg-body d-flex justify-content-between"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button><div><button type="button" class="btn btn-success fw-bold shadow-sm me-1" onclick="ejecutarBorradoMasivo('descargar')"><img src="{% static 'inventario/images/excel.svg' %}" width="16" class="me-1" style="filter: brightness(0) invert(1);"> Descargar Datos</button><button type="button" class="btn btn-danger fw-bold shadow-sm" onclick="ejecutarBorradoMasivo('borrar')">Eliminar</button></div></div></div></div></div>
+    </form>
+</div>
+
+<div class="modal fade" id="modalEditarRegistro" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-body"><div class="modal-header bg-body-secondary border-bottom border-primary"><h5 class="modal-title fw-bold text-primary">Modificar Registro</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body bg-body-tertiary text-start">{% csrf_token %}<input type="hidden" name="action" value="editar_registro"><input type="hidden" name="registro_id" id="edit_reg_id"><div class="alert bg-body-secondary border text-body small py-2 mb-3 shadow-sm">Si modificas la <strong>Cantidad</strong>, se actualizará en MongoDB.</div><div class="row g-3"><div class="col-md-6"><label class="small fw-bold text-secondary">Cantidad</label><input type="number" name="edit_cantidad" id="edit_cantidad" class="form-control bg-body text-body fw-bold border-secondary-subtle shadow-sm" required></div><div class="col-md-6"><label class="small fw-bold text-secondary">Estatus</label><select name="edit_estatus" id="edit_estatus" class="form-select bg-body text-body fw-bold border-secondary-subtle shadow-sm" onchange="toggleModalAcciones(this)"><option value="C">C (Cumple)</option><option value="NC">NC (No Cumple)</option></select></div><div class="col-12"><label class="small fw-bold text-secondary">Acción Correctiva</label><div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle w-100 text-start text-truncate bg-body shadow-sm" type="button" id="btnEditAccionesUI" data-bs-toggle="dropdown" data-bs-auto-close="outside">Seleccionar...</button><ul class="dropdown-menu shadow p-2 bg-body text-body" style="width: 100%; z-index: 2000;"><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="1. Cambio Plástico/Vidrio/Cerámico" onchange="actualizarHiddenEditAccion()"> 1. Cambio Plástico, Vidrio o Cerámico.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="2. Cambio protección" onchange="actualizarHiddenEditAccion()"> 2. Cambio de la protección.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="3. Reposición piezas" onchange="actualizarHiddenEditAccion()"> 3. Reposición de piezas faltantes.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="4. Informar Jefaturas" onchange="actualizarHiddenEditAccion()"> 4. Informar a Jefe de Planta y Calidad.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="5. Detener Producción" onchange="actualizarHiddenEditAccion()"> 5. Detener Producción.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="6. Aislar producto" onchange="actualizarHiddenEditAccion()"> 6. Aislar producto afectado.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="7. Retirar producto" onchange="actualizarHiddenEditAccion()"> 7. Retirar producto afectado.</label></li><li><label class="dropdown-item small text-wrap text-body"><input type="checkbox" class="me-2 check-edit-accion" value="8. Eliminación contaminado" onchange="actualizarHiddenEditAccion()"> 8. Eliminación producto contaminado.</label></li></ul><input type="hidden" name="edit_acciones_hidden" id="edit_acciones_hidden"></div></div><div class="col-12"><label class="small fw-bold text-secondary">Observación</label><textarea name="edit_observacion" id="edit_observacion" class="form-control bg-body text-body border-secondary-subtle shadow-sm" rows="2"></textarea></div></div></div><div class="modal-footer bg-body-tertiary border-top-0"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary fw-bold shadow-sm">Guardar Cambios</button></div></form></div></div></div>
+
+<div class="modal fade" id="modalDescargarExcel" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-body"><div class="modal-header bg-body-secondary border-bottom border-success"><h5 class="modal-title fw-bold text-success">Descargar Reporte Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" onsubmit="return validarDescargaExcel()"><div class="modal-body bg-body-tertiary text-start">{% csrf_token %}<input type="hidden" name="action" value="descargar_excel"><label class="small fw-bold text-secondary mb-1">Planta Evaluada</label><div class="row g-2 mb-4"><div class="col-md-6"><select name="planta_select" class="form-select border-secondary-subtle bg-body text-body shadow-sm" id="selectPlanta" onchange="toggleOtraPlanta()"><option value="BioBio">BioBio</option><option value="Freire">Freire</option><option value="Otra">Otra (Especificar)</option></select></div><div class="col-md-6"><input type="text" name="planta_otra" id="inputPlantaOtra" class="form-control border-secondary-subtle bg-body text-body shadow-sm" placeholder="Nombre planta..." style="display:none;"></div></div><label class="small fw-bold text-secondary mb-2">Método de Extracción</label><ul class="nav nav-pills nav-fill mb-3 bg-body-secondary border rounded shadow-sm p-1" id="pills-tab"><li class="nav-item"><button class="nav-link active py-1 fw-bold" data-bs-toggle="pill" data-bs-target="#pills-mes" type="button" onclick="document.getElementById('tipo_descarga').value='mes'">Por Mes</button></li><li class="nav-item"><button class="nav-link py-1 fw-bold" data-bs-toggle="pill" data-bs-target="#pills-rango" type="button" onclick="document.getElementById('tipo_descarga').value='rango'">Por Rango</button></li></ul><input type="hidden" name="tipo_descarga" id="tipo_descarga" value="mes"><div class="tab-content bg-body p-3 border rounded shadow-sm"><div class="tab-pane fade show active" id="pills-mes"><label class="small fw-bold text-body">Seleccionar Mes:</label><input type="month" name="filtro_mes" class="form-control bg-body text-body border-secondary-subtle mt-1" id="inputMes"></div><div class="tab-pane fade" id="pills-rango"><div class="row g-2"><div class="col-6"><label class="small fw-bold text-body">Desde:</label><input type="date" name="fecha_inicio" id="inputRango1" class="form-control bg-body text-body border-secondary-subtle mt-1"></div><div class="col-6"><label class="small fw-bold text-body">Hasta:</label><input type="date" name="fecha_fin" id="inputRango2" class="form-control bg-body text-body border-secondary-subtle mt-1"></div></div></div></div></div><div class="modal-footer bg-body-tertiary border-top-0"><button type="submit" class="btn btn-success fw-bold w-100 shadow-sm">Generar Archivo .XLSX</button></div></form></div></div></div>
+{% endif %}
+
+{% if vista_actual == 'verificar' and user.rol in 'admin, superuser' %}
+<div class="card p-4 border-0 shadow-sm bg-body-tertiary">
+    
+    <div class="row g-3 mb-4 bg-body-secondary p-3 rounded mx-0">
+        <div class="col-md-6"><label class="small fw-bold">Base de Datos</label><select class="form-select border-secondary-subtle fw-bold" onchange="window.location.href='?vista=verificar&db='+this.value">{% for db in menu_navegacion.keys %}<option value="{{ db }}" {% if db == selected_db %}selected{% endif %}>{{ db }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="small fw-bold">Colección (Planta)</label><select class="form-select border-secondary-subtle fw-bold" onchange="window.location.href='?vista=verificar&db={{ selected_db }}&bodega='+this.value">{% for coll in colecciones_db %}<option value="{{ coll }}" {% if coll == selected_coll %}selected{% endif %}>{{ coll }}</option>{% endfor %}</select></div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3"><h5 class="fw-bold text-body mb-0 d-flex align-items-center"><img src="{% static 'inventario/images/check.svg' %}" class="icono-tema me-2" width="20"> Verificar Registros Pendientes</h5></div>
+
+    <div class="row g-3 mb-4 bg-body p-3 rounded border shadow-sm mx-0">
+        <div class="col-md-3"><label class="small fw-bold text-secondary">Filtrar por Mes</label><input type="month" id="filtroMesVerificar" class="form-control bg-body text-body border-secondary-subtle" onchange="filtrarFechasVerificar()"></div>
+        <div class="col-md-5"><label class="small fw-bold text-secondary">Rango de Fechas Exacto</label><div class="input-group"><input type="date" id="filtroInicioVerificar" class="form-control bg-body text-body border-secondary-subtle" onchange="filtrarFechasVerificar()"><span class="input-group-text bg-body-secondary border-secondary-subtle">a</span><input type="date" id="filtroFinVerificar" class="form-control bg-body text-body border-secondary-subtle" onchange="filtrarFechasVerificar()"></div></div>
+        <div class="col-md-4 d-flex align-items-end gap-2"><button class="btn btn-outline-secondary w-50" onclick="limpiarFiltrosVerificar()">Limpiar</button><input type="text" id="buscadorVerificar" class="form-control bg-body text-body border-secondary-subtle w-50" placeholder="Buscar..." onkeyup="filtrarFechasVerificar()"></div>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="verificar_registros">
+        <div class="table-responsive border rounded bg-body" style="max-height: 600px;">
+            <table class="table table-hover table-sm align-middle mb-0" id="tablaVerificar">
+                <thead class="bg-body-secondary text-body-secondary sticky-top">
+                    <tr><th class="text-center" style="width: 50px;"><input class="form-check-input border-secondary-subtle" type="checkbox" id="checkAllVerificar" onchange="toggleAllVerificar(this)"></th><th>Fecha y Monitor</th><th>Equipo / Ubicación</th><th class="text-center">Estatus</th><th>Acciones / Observación</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in registros_pendientes %}
+                    <tr class="fila-verificar" data-fecha="{{ r.fecha_monitoreo|date:'Y-m-d' }}">
+                        <td class="text-center"><input class="form-check-input check-verificar border-secondary" type="checkbox" name="verificar_ids" value="{{ r.id }}" onchange="validarBotonVerificar()"></td>
+                        <td><div class="small fw-bold text-body">{{ r.fecha_monitoreo|date:"d/m/Y H:i" }}</div><div class="small text-body-secondary">{{ r.nombre_monitor }}</div></td>
+                        <td class="small"><span class="fw-bold text-body">{{ r.equipo }}</span><br><span class="text-body-secondary">{{ r.ubicacion }}</span></td>
+                        <td class="text-center fw-bold small {% if r.estatus == 'C' %}text-success{% else %}text-danger{% endif %}">{{ r.estatus }}</td>
+                        <td class="small">{% if r.accion_correctiva %}<div class="text-danger mb-1">{{ r.accion_correctiva }}</div>{% endif %}{% if r.observacion %}<div class="text-body-secondary fst-italic">{{ r.observacion }}</div>{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center py-5 text-success fw-bold">🎉 ¡Todo al día! No hay registros pendientes de verificación en esta planta.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4 text-end">
+            <button type="button" id="btnAutorizarVerificacion" class="btn btn-primary fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#modalFirmaVerificar" disabled><img src="{% static 'inventario/images/check.svg' %}" width="18" style="filter: brightness(0) invert(1);" class="me-1"> Autorizar Seleccionados</button>
+        </div>
+        <div class="modal fade" id="modalFirmaVerificar" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-body"><div class="modal-header bg-body-secondary border-bottom border-primary"><h5 class="modal-title fw-bold text-primary">Firma Electrónica</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-start bg-body-tertiary"><p class="small text-body-secondary mb-3">Para autorizar y verificar estos registros a tu nombre, por favor ingresa tu contraseña de administrador.</p><label class="fw-bold small mb-1 text-secondary">Contraseña:</label><input type="password" name="password_confirm" class="form-control bg-body text-body border-secondary-subtle shadow-sm" required placeholder="Ingresar clave..."></div><div class="modal-footer bg-body-tertiary border-top-0"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary fw-bold shadow-sm">Confirmar Verificación</button></div></div></div></div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 1. Definimos las rutas estáticas como variables globales para que el JS externo pueda usarlas
+    const URL_ICONO_BASURERO = "{% static 'inventario/images/basurero.svg' %}";
+    const URL_ICONO_CHECK = "{% static 'inventario/images/check.svg' %}";
+</script>
+
+<script src="{% static 'inventario/js/registros.js' %}"></script>
+{% endblock %}

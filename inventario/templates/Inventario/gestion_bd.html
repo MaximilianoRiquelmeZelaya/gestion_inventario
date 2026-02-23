@@ -1,0 +1,297 @@
+{% extends 'inventario/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-3" width="32">
+    <h2 class="fw-bold mb-0">Arquitectura de Base de Datos</h2>
+</div>
+
+<ul class="nav nav-tabs mb-4 border-secondary-subtle">
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'crear_db' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=crear_db"><img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-2" width="16"> Nueva Base de Datos</a></li>
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'crear_bodega' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=crear_bodega"><img src="{% static 'inventario/images/caja.svg' %}" class="icono-tema me-2" width="16"> Nueva Colección</a></li>
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'importar' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=importar"><img src="{% static 'inventario/images/excel.svg' %}" class="icono-tema me-2" width="16"> Importar desde Excel/CSV
+    <li class="nav-item"><a class="nav-link d-flex align-items-center {% if vista_actual == 'editar_bd' %}active fw-bold bg-body-tertiary border-bottom-0{% else %}text-secondary{% endif %}" href="?vista=editar_bd"><img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema me-2" width="16"> Editar Arquitectura</a></li>
+</ul>
+
+<div class="card p-4 bg-body-tertiary border-0 shadow-sm">
+    
+    {% if vista_actual == 'crear_db' %}
+        <h5 class="fw-bold text-body mb-3">DISEÑAR NUEVA BASE DE DATOS MANUAL</h5>
+        <p class="text-muted small mb-4">Define las columnas que tendrán los productos. Puedes arrastrar y soltar los campos usando el ícono ☰.</p>
+        <form method="POST">
+            {% csrf_token %}<input type="hidden" name="action" value="crear_db"><input type="hidden" name="vista_actual" value="crear_db">
+            <div class="row mb-4"><div class="col-md-6"><label class="fw-bold small mb-1 text-secondary">Nombre de la Base de Datos</label><input type="text" name="nombre_db" class="form-control fw-bold border-primary" required placeholder="Ej: Insumos_Medicos (Sin espacios)"></div></div>
+            <div class="d-flex justify-content-between align-items-center border-bottom border-2 border-secondary-subtle pb-2 mb-3"><h6 class="fw-bold mb-0">Definición de Columnas</h6><span class="badge bg-info text-dark shadow-sm">Arrastra para ordenar</span></div>
+            <div id="contenedor-campos" class="mb-3 lista-campos">
+                <div class="row g-2 mb-2 align-items-center bg-body p-2 border rounded shadow-sm item-campo"><div class="col-auto text-muted drag-handle" style="cursor: grab; font-size: 1.2rem;" title="Arrastrar">☰</div><div class="col-md-5"><input type="text" name="campo_nombre[]" value="Producto" class="form-control bg-body-secondary text-muted fw-bold " readonly tabindex="-1"></div><div class="col-md-4"><select name="campo_tipo[]" class="form-select bg-body-secondary text-muted" readonly style="pointer-events: none;" tabindex="-1"><option value="text" selected>Texto Corto</option></select></div><div class="col-auto"><span class="badge bg-secondary opacity-75">Sistema</span></div></div>
+                <div class="row g-2 mb-2 align-items-center bg-body p-2 border rounded shadow-sm item-campo"><div class="col-auto text-muted drag-handle" style="cursor: grab; font-size: 1.2rem;" title="Arrastrar">☰</div><div class="col-md-5"><input type="text" name="campo_nombre[]" value="Stock Actual" class="form-control bg-body-secondary text-muted fw-bold" readonly tabindex="-1"></div><div class="col-md-4"><select name="campo_tipo[]" class="form-select bg-body-secondary text-muted" readonly style="pointer-events: none;" tabindex="-1"><option value="number" selected>Número Entero</option></select></div><div class="col-auto"><span class="badge bg-secondary opacity-75">Sistema</span></div></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary fw-bold mb-4 d-flex align-items-center" onclick="agregarCampoAExistente('contenedor-campos')"><span class="fs-5 me-1" style="line-height: 0.5;">+</span> Agregar Columna</button>
+            <hr class="border-secondary-subtle"><div class="text-end"><button type="submit" class="btn btn-primary fw-bold px-4 shadow-sm">Guardar Base de Datos</button></div>
+        </form>
+
+    {% elif vista_actual == 'crear_bodega' %}
+        <h5 class="fw-bold text-body mb-3">CREAR NUEVA COLECCIÓN</h5>
+        <p class="text-muted small mb-4">Añade una colección a una Base de Datos existente.</p>
+        <form method="POST" class="row g-3 align-items-end">
+            {% csrf_token %}<input type="hidden" name="action" value="crear_coleccion"><input type="hidden" name="vista_actual" value="crear_bodega">
+            <div class="col-md-5"><label class="fw-bold small mb-1 text-secondary">Base de Datos Padre</label><select name="db_padre" class="form-select fw-bold border-success" required><option value="">Seleccione...</option>{% for db in arbol_dbs %}<option value="{{ db.nombre }}">{{ db.nombre }}</option>{% endfor %}</select></div>
+            <div class="col-md-5"><label class="fw-bold small mb-1 text-secondary">Nombre de la Nueva Colección</label><input type="text" name="nueva_coll" class="form-control fw-bold border-success" required placeholder="Ej: Bodega_Taller_Central"></div>
+            <div class="col-md-2 text-end"><button type="submit" class="btn btn-success fw-bold w-100 shadow-sm">Crear Colección</button></div>
+        </form>
+
+    {% elif vista_actual == 'importar' %}
+        {% if importacion_fase == 'confirmar' %}
+            
+            <div class="card border-primary mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                    <span><img src="{% static 'inventario/images/buscar.svg' %}" class="icono-navbar me-2" width="16"> Fuente: {{ file_name }}</span>
+                </div>
+                <div class="card-body bg-body">
+                    <form method="POST" class="row g-3 align-items-end">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="previsualizar_importacion"><input type="hidden" name="vista_actual" value="importar"><input type="hidden" name="filename_existente" value="{{ file_name }}">
+                        <input type="hidden" name="modo_destino" value="{{ modo_destino }}">
+                        <input type="hidden" name="target_db_select" value="{{ target_db_select }}">
+
+                        <div class="col-md-5"><label class="small fw-bold text-secondary">Hoja de Cálculo</label>{% if sheet_names %}<select name="sheet_seleccionada" class="form-select fw-bold border-primary" onchange="this.form.submit()">{% for sheet in sheet_names %}<option value="{{ sheet }}" {% if sheet == current_sheet %}selected{% endif %}>📄 {{ sheet }}</option>{% endfor %}</select>{% else %}<input type="text" class="form-control" value="Archivo CSV (Única)" disabled>{% endif %}</div>
+                        <div class="col-md-4"><label class="small fw-bold text-secondary">Fila de Encabezados</label><input type="number" name="fila_encabezado" class="form-control fw-bold border-primary" value="{{ header_row }}" min="1"></div>
+                        <div class="col-md-3"><button type="submit" class="btn btn-outline-primary w-100 fw-bold">Actualizar Vista</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <h5 class="fw-bold text-body mb-3">Mapeo de Campos</h5>
+            
+            <datalist id="listaCamposExistentes">
+                {% for campo in campos_existentes_db %}
+                    <option value="{{ campo }}">
+                {% endfor %}
+            </datalist>
+
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirmar_importacion"><input type="hidden" name="vista_actual" value="importar"><input type="hidden" name="file_name" value="{{ file_name }}">
+                <input type="hidden" name="header_row" value="{{ header_row }}"><input type="hidden" name="sheet_final" value="{{ current_sheet }}">
+                <input type="hidden" name="modo_destino" value="{{ modo_destino }}">
+                
+                <div class="row mb-4 bg-body-secondary p-3 rounded mx-0">
+                    {% if modo_destino == 'existente' %}
+                        <div class="col-md-6">
+                            <label class="fw-bold small text-primary">Base de Datos Destino</label>
+                            <input type="text" name="target_db_select" class="form-control fw-bold border-primary bg-nody" value="{{ target_db_select }}" readonly>
+                            <small class="text-muted">Se añadirán columnas si no existen.</small>
+                        </div>
+                    {% else %}
+                        <div class="col-md-6">
+                            <label class="fw-bold small text-secondary">Nombre Nueva BD</label>
+                            <input type="text" name="nombre_db_final" class="form-control fw-bold border-success" required placeholder="Ej: Importacion_2026">
+                        </div>
+                    {% endif %}
+                    <div class="col-md-6">
+                        <label class="fw-bold small text-secondary">Nombre para la Colección (Lote)</label>
+                        <input type="text" name="nombre_coll_final" class="form-control fw-bold border-success" required placeholder="Ej: Lote_Agosto_25">
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded mb-4 shadow-sm bg-body">
+                    <table class="table table-hover mb-0 align-middle table-sm">
+                        <thead class="bg-body-secondary text-center">
+                            <tr>
+                                <th style="width: 30px;"></th><th style="width: 40px;">Imp.</th><th class="text-start">Columna Original (Excel)</th><th class="text-start">Asignar a Campo en BD</th><th style="width: 200px;">Tipo de Dato</th>
+                                <th style="width: 80px;" class="bg-primary-subtle text-body border-primary">Es Prod.</th>
+                                <th style="width: 80px;" class="bg-warning-subtle text-body border-warning">Es Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaMapeo">
+                            {% for col in columnas_info %}
+                            <tr class="bg-body item-fila">
+                                <td class="text-muted drag-handle text-center" style="cursor: grab;">
+                                    <img src="{% static 'inventario/images/lista.svg' %}" width="16" class="opacity-50">
+                                </td>
+                                <td class="text-center">
+                                    <div class="form-check d-flex justify-content-center">
+                                        <input class="form-check-input border-secondary check-activo" type="checkbox" checked onchange="toggleFila(this)">
+                                        <input type="hidden" name="col_estado" value="1">
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-secondary small text-truncate d-block" style="max-width: 150px;" title="{{ col.original }}">{{ col.original }}</span>
+                                    <input type="hidden" name="col_original" value="{{ col.original }}">
+                                </td>
+                                <td>
+                                    <input type="text" name="col_nueva" class="form-control form-control-sm fw-bold border-secondary-subtle input-nombre-final" 
+                                           value="{{ col.match_sugerido|default:col.original }}" 
+                                           list="listaCamposExistentes" placeholder="Escribe o selecciona...">
+                                </td>
+                                <td>
+                                    <select name="col_tipo" class="form-select form-select-sm border-secondary-subtle fw-semibold select-tipo">
+                                        <option value="text" {% if col.tipo == 'text' %}selected{% endif %}>Texto Corto</option>
+                                        <option value="number" {% if col.tipo == 'number' %}selected{% endif %}>Número Entero</option>
+                                        <option value="decimal">Número Decimal</option>
+                                        <option value="date" {% if col.tipo == 'date' %}selected{% endif %}>Fecha</option>
+                                        <option value="calc_stock">Semáforo: Stock</option>
+                                        <option value="calc_venc">Semáforo: Vencimiento</option>
+                                    </select>
+                                </td>
+                                <td class="text-center bg-primary-subtle border-start border-primary-subtle">
+                                    <input class="form-check-input border-primary radio-rol" type="radio" name="rol_producto_select" value="{{ col.original }}" onchange="actualizarRoles(this, 'producto')">
+                                </td>
+                                <td class="text-center bg-warning-subtle border-start border-warning-subtle">
+                                    <input class="form-check-input border-warning radio-rol" type="radio" name="rol_stock_select" value="{{ col.original }}" onchange="actualizarRoles(this, 'stock')">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="text-end">
+                    <a href="?vista=importar" class="btn btn-secondary fw-bold me-2">Cancelar</a>
+                    <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm">Confirmar e Importar</button>
+                </div>
+            </form>
+
+        {% else %}
+            <div class="text-center py-5 border rounded-3 bg-body-tertiary shadow-sm">
+                <img src="{% static 'inventario/images/caja.svg' %}" width="64" class="mb-3 opacity-50">
+                <h4 class="fw-bold text-body">Asistente de Importación</h4>
+                <p class="text-muted mb-4">Sube tu archivo para crear una base nueva o alimentar una existente.</p>
+                
+                <form method="POST" enctype="multipart/form-data" class="d-inline-block text-start" style="max-width: 400px; width: 100%;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="previsualizar_importacion">
+                    <input type="hidden" name="vista_actual" value="importar">
+                    
+                    <div class="mb-3">
+                        <label class="fw-bold small text-secondary">Destino de la Importación</label>
+                        <select name="modo_destino" class="form-select border-primary mb-2 fw-bold" id="select_modo_destino" onchange="toggleDestino(this)">
+                            <option value="nueva">Crear Nueva Base de Datos</option>
+                            <option value="existente">Usar Base de Datos Existente</option>
+                        </select>
+                        
+                        <div id="box_bd_existente" style="display:none;">
+                            <select name="target_db_select" class="form-select bg-body-secondary border-secondary">
+                                {% for bd in lista_bds_existentes %}
+                                    <option value="{{ bd }}">{{ bd }}</option>
+                                {% empty %}
+                                    <option value="" disabled>No hay bases creadas</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="fw-bold small text-secondary">Archivo</label>
+                        <input type="file" name="archivo_importar" class="form-control border-primary shadow-sm" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary fw-bold w-100 shadow-sm">Siguiente &rarr;</button>
+                </form>
+            </div>
+        {% endif %}
+
+    {% elif vista_actual == 'editar_bd' %}
+        <h5 class="fw-bold text-body mb-4">ARQUITECTURA DEL SISTEMA</h5>
+        <div class="accordion shadow-sm" id="accordionBD">
+            {% for db in arbol_dbs %}
+            <div class="accordion-item border-secondary-subtle">
+                <h2 class="accordion-header">
+                    <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-bold fs-5 bg-body" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
+                        <img src="{% static 'inventario/images/tuerca.svg' %}" class="icono-tema me-2" width="20"> {{ db.nombre }}
+                    </button>
+                </h2>
+                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#accordionBD">
+                    <div class="accordion-body bg-body-tertiary">
+                        <form method="POST" id="form-bd-{{ forloop.counter }}">
+                            {% csrf_token %}<input type="hidden" name="action" value="crear_db"><input type="hidden" name="vista_actual" value="editar_bd"><input type="hidden" name="nombre_db" value="{{ db.nombre }}">
+                            <div class="row">
+                                <div class="col-md-7 border-end border-secondary-subtle">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="fw-bold text-secondary mb-0">Estructura de Columnas:</h6>
+                                        <button type="button" class="btn btn-sm btn-warning fw-bold shadow-sm btn-habilitar" onclick="activarEdicion('{{ forloop.counter }}')">Habilitar Edición</button>
+                                        <span class="badge bg-warning text-dark shadow-sm indicativo-arrastre" style="display: none;">Arrastra y edita</span>
+                                    </div>
+                                    <div class="lista-campos" id="sortable-{{ forloop.counter }}">
+                                        {% for c in db.campos %}
+                                            <div class="row g-2 mb-2 align-items-center bg-body p-2 border rounded shadow-sm item-campo">
+                                                <div class="col-auto text-muted drag-handle drag-handle-edit" style="cursor: grab; font-size: 1.2rem; display: none;" title="Arrastrar">☰</div>
+                                                {% if c.nombre == 'Producto' or c.nombre == 'Stock Actual' %}
+                                                    <div class="col-md-5"><input type="text" name="campo_nombre[]" value="{{ c.alias|default:c.nombre }}" class="form-control bg-body-secondary text-muted fw-bold" readonly tabindex="-1"></div>
+                                                    <div class="col-md-4"><select name="campo_tipo[]" class="form-select bg-body-secondary text-muted" readonly style="pointer-events: none;" tabindex="-1"><option value="{{ c.tipo }}" selected>{{ c.tipo }}</option></select></div>
+                                                    <div class="col-auto"><span class="badge bg-secondary opacity-75">Sistema</span></div>
+                                                {% else %}
+                                                    <div class="col-md-5"><input type="text" name="campo_nombre[]" value="{{ c.nombre }}" class="form-control fw-semibold input-editable bg-body-secondary" readonly required></div>
+                                                    <div class="col-md-4">
+                                                        <select name="campo_tipo[]" class="form-select select-editable border-secondary-subtle text-muted bg-body-secondary" style="pointer-events: none">
+                                                            <option value="text" {% if c.tipo == 'text' %}selected{% endif %}>Texto Corto</option>
+                                                            <option value="number" {% if c.tipo == 'number' %}selected{% endif %}>Número Entero</option>
+                                                            <option value="decimal" {% if c.tipo == 'decimal' %}selected{% endif %}>Número Decimal</option>
+                                                            <option value="date" {% if c.tipo == 'date' %}selected{% endif %}>Fecha (DD-MM-YYYY)</option>
+                                                            <option value="calc_stock" {% if c.tipo == 'calc_stock' %}selected{% endif %}>Semáforo: Stock</option>
+                                                            <option value="calc_venc" {% if c.tipo == 'calc_venc' %}selected{% endif %}>Semáforo: Vencimiento</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-auto btn-delete-edit" style="display: none;"><button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('.item-campo').remove()"><img src="{% static 'inventario/images/basurero.svg' %}" width="16"></button></div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-3 acciones-edicion" style="display: none !important;">
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger fw-bold shadow-sm bg-body" onclick="abrirModalBorrar('db', '{{ db.nombre }}', '')"><img src="{% static 'inventario/images/basurero.svg' %}" width="16" class="me-1"> Eliminar BD</button>
+                                        </div>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm bg-body me-1" onclick="agregarCampoAExistente('sortable-{{ forloop.counter }}')">+ Agregar Columna</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger fw-bold shadow-sm bg-body me-1" onclick="window.location.href='?vista=editar_bd'">Descartar</button>
+                                            <button type="submit" class="btn btn-sm btn-primary fw-bold px-3 shadow-sm">Guardar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-5 ps-md-4">
+                                    <h6 class="fw-bold text-secondary mb-3 mt-3 mt-md-0">Colecciones en esta BD:</h6>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% for coll in db.colecciones %}
+                                            <div class="badge border border-primary text-primary bg-primary-subtle fs-6 px-3 py-2 d-flex align-items-center shadow-sm">
+                                                <img src="{% static 'inventario/images/caja.svg' %}" class="me-2" width="14" style="filter: invert(30%) sepia(80%) saturate(1500%) hue-rotate(200deg);"> {{ coll }}
+                                                
+                                                <button type="button" class="btn btn-sm btn-link p-0 ms-3 text-primary" title="Renombrar Colección" onclick="abrirModalRenombrar('coleccion', '{{ db.nombre }}', '{{ coll }}')">
+                                                    <img src="{% static 'inventario/images/tuerca.svg' %}" width="14">
+                                                </button>
+                                                
+                                                <button type="button" class="btn btn-sm btn-link p-0 ms-2 text-danger" title="Eliminar Colección" onclick="abrirModalBorrar('coleccion', '{{ db.nombre }}', '{{ coll }}')">
+                                                    <img src="{% static 'inventario/images/basurero.svg' %}" width="14">
+                                                </button>
+                                            </div>
+                                        {% empty %}
+                                            <span class="text-muted small">No hay colecciones creadas.</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="alert alert-secondary border-0 shadow-sm text-center py-4"><img src="{% static 'inventario/images/buscar.svg' %}" class="icono-tema opacity-50 mb-3" width="48"><p class="mb-0 fw-bold text-muted">No hay bases de datos configuradas en el sistema.</p></div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+</div>
+
+<div class="modal fade" id="modalBorrarSeguro" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">⚠️ Confirmar Eliminación Crítica</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body text-start">{% csrf_token %}<input type="hidden" name="action" id="borrar_action"><input type="hidden" name="vista_actual" value="editar_bd"><input type="hidden" name="borrar_db_nombre" id="borrar_db_nombre"><input type="hidden" name="borrar_coll_nombre" id="borrar_coll_nombre"><div class="alert alert-warning border-warning shadow-sm"><p class="mb-0 fs-6" id="texto_borrar_alerta"></p></div><p class="text-danger fw-bold small mb-3">Esta acción es irreversible.</p><label class="fw-bold small mb-1 text-secondary">Contraseña de Administrador:</label><input type="password" name="password_confirm" class="form-control fw-bold border-danger" required></div><div class="modal-footer bg-body-tertiary"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-danger fw-bold shadow-sm">Ejecutar Eliminación</button></div></form></div></div></div>
+<div class="modal fade" id="modalRenombrar" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">✏️ Renombrar Elemento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body text-start">{% csrf_token %}<input type="hidden" name="action" id="renombrar_action"><input type="hidden" name="vista_actual" value="editar_bd"><input type="hidden" name="db_origen" id="renom_db_origen"><input type="hidden" name="coll_antigua" id="renom_coll_antigua"><input type="hidden" name="db_antigua" id="renom_db_antigua"><p id="texto_renombrar_info" class="text-muted small mb-3"></p><label class="fw-bold small mb-1">Nuevo Nombre:</label><input type="text" name="nuevo_nombre" id="input_nuevo_nombre" class="form-control fw-bold mb-3 border-primary" required><div id="seguridad_renom_db" style="display:none;"><div class="alert alert-info small shadow-sm">Migrar BD completa puede tardar.</div></div><label class="fw-bold small mb-1 text-secondary">Contraseña:</label><input type="password" name="password_confirm" class="form-control fw-bold" required></div><div class="modal-footer bg-body-tertiary"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary fw-bold shadow-sm">Guardar</button></div></form></div></div></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+    // Variable global para que el JS sepa dónde está el ícono
+    const URL_ICONO_BASURERO = "{% static 'inventario/images/basurero.svg' %}";
+</script>
+<script src="{% static 'inventario/js/gestion_bd.js' %}"></script>
+{% endblock %}
