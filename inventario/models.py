@@ -75,6 +75,7 @@ class HistorialCambio(models.Model):
         ('eliminación', 'Eliminación'),
         ('solicitud', 'Solicitud'),
         ('registros', 'Registros'),
+        ('control', 'Control'),
         ('creación', 'Creación'),
         ('importación', 'Importación')
     )
