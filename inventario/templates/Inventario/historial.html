@@ -96,13 +96,18 @@
                         {% if request.user.rol == 'superuser' %}
                         <td class="text-center"><input type="checkbox" name="delete_ids" value="{{ h.id }}" class="form-check-input check-borrar-hist border-secondary" onchange="validarBotonBorrarHist()"></td>
                         {% endif %}
-                        <td class="fw-bold small">
-                            {% if h.tipo_cambio == 'modificación' %}<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle w-100 py-2">Modificación</span>
-                            {% elif h.tipo_cambio == 'eliminación' %}<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle w-100 py-2">Eliminación</span>
-                            {% elif h.tipo_cambio == 'creación' %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle w-100 py-2">Creación</span>
-                            {% elif h.tipo_cambio == 'solicitud' %}<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle w-100 py-2">Solicitud</span>
-                            {% elif h.tipo_cambio == 'registros' %}<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle w-100 py-2">Registros</span>
-                            {% elif h.tipo_cambio == 'importación' %}<span class="badge bg-secondary text-white border border-secondary w-100 py-2">Importación</span>
+                        <td>
+                            {% if h.tipo_cambio == 'creación' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">Creación</span>
+                            {% elif h.tipo_cambio == 'modificación' %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Modificación</span>
+                            {% elif h.tipo_cambio == 'eliminación' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Eliminación</span>
+                            {% elif h.tipo_cambio == 'solicitud' %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Solicitud</span>
+                            {% elif h.tipo_cambio == 'registros' or h.tipo_cambio == 'control' %} <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">{{ h.get_tipo_cambio_display }}</span>
+                            {% elif h.tipo_cambio == 'importación' %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Importación</span>
                             {% endif %}
                         </td>
                         <td class="small pe-3 text-body">

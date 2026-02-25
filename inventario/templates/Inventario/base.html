@@ -51,10 +51,14 @@
                     <a class="nav-link dropdown-toggle d-flex align-items-center {% if request.resolver_match.url_name == 'inventario' %}active fw-bold{% endif %}" href="{% url 'inventario' %}?vista=ver" onclick="window.location.href=this.href;" role="button" data-bs-toggle="dropdown" aria-expanded="false"><img src="{% static 'inventario/images/caja.svg' %}" class="icono-navbar me-1" width="16"> Inventario</a>
                     <ul class="dropdown-menu shadow-sm">
                         <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=ver">Ver Inventario</a></li>
+                        
                         {% if puede_editar %}
+                            <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=control">Control de Inventario</a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=crear">Crear Registro</a></li>
                             <li><a class="dropdown-item" href="{% url 'inventario' %}?vista=editar">Editar Registros</a></li>
-                            {% if user.rol == 'admin' or user.rol == 'superuser' %}
+                            
+                            {% if user.rol in 'admin,superuser' %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="{% url 'inventario' %}?vista=borrar">Eliminar Registros</a></li>
                             {% endif %}
