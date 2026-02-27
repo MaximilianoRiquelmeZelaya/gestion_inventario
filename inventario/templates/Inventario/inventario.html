@@ -257,7 +257,7 @@
             </thead>
             <tbody>
                 {% for p in productos %}
-                <tr class="fila-dato" onclick="abrirModalEditar('{{ p.id }}', this)" data-json='{{ p.raw_json|safe }}'>
+                <tr class="fila-dato" onclick="abrirModalEditar(event, '{{ p.id }}', this)" data-json='{{ p.raw_json|safe }}'>
                     {% for celda in p.celdas %}
                         <td class="col-idx-{{ forloop.counter0 }} small fw-semibold">{{ celda.valor }}</td>
                     {% endfor %}
