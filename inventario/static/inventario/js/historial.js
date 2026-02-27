@@ -1,4 +1,3 @@
-// 1. LÓGICA DE FILTRADO COMPLETA
 function filtrarHistorial() {
     let inicio = document.getElementById("filtroHistorialInicio").value; 
     let fin = document.getElementById("filtroHistorialFin").value;
@@ -48,7 +47,6 @@ function limpiarFiltrosHistorial() {
     filtrarHistorial();
 }
 
-// 2. INICIALIZAR DROPDOWNS DE FILTRO
 document.addEventListener("DOMContentLoaded", function() {
     const tablaId = 'tablaHistorial';
     const filas = document.querySelectorAll(`#${tablaId} tbody tr.fila-historial`);
@@ -85,7 +83,6 @@ document.addEventListener('change', function(e) {
     }
 });
 
-// 3. MOSTRAR JSON DEL PRODUCTO ELIMINADO
 function verDetallesEliminado(jsonString) {
     try {
         let obj = JSON.parse(jsonString);

@@ -1,29 +1,20 @@
-/**
- * ARCHIVO PRINCIPAL DE JAVASCRIPT PARA LA VISTA DE REGISTROS
- */
-
-// Variable global para controlar salidas accidentales
 let cambiosSinGuardar = false;
 
 document.addEventListener("DOMContentLoaded", function() {
-    // 1. Inicialización de la vista "Nuevo Registro" (si existen los elementos)
     if (document.getElementById('mapUbicacion')) {
         remapearColumnas();
     }
     
-    // 2. Inicialización del Modal de Historial (Fechas por defecto)
     if (document.getElementById("fechaInicioModal")) {
         setFechasPorDefectoModal();
         setTimeout(filtrarTablaModal, 100); 
     }
 
-    // 3. Trackers de cambios sin guardar
     document.querySelectorAll('.input-tracker').forEach(inp => { 
         inp.addEventListener('input', () => cambiosSinGuardar = true); 
         inp.addEventListener('change', () => cambiosSinGuardar = true); 
     });
     
-    // 4. Listeners para los checkbox "Seleccionar Todo" en las columnas de filtros
     document.addEventListener('change', function(e) { 
         if (e.target.classList.contains('select-all-col-reg')) { 
             let col = e.target.getAttribute('data-col'); 
@@ -46,10 +37,6 @@ window.addEventListener('beforeunload', function (e) {
         e.returnValue = ''; 
     } 
 });
-
-// ==========================================
-// FUNCIONES PARA: NUEVO REGISTRO
-// ==========================================
 
 function sincronizarMonitor() { 
     document.getElementById('formMonitorGlobal').value = document.getElementById('inputMonitorGlobal').value; 
@@ -275,10 +262,6 @@ function limpiarFiltrosModal() {
     filtrarTablaModal(); 
 }
 
-// ==========================================
-// FUNCIONES PARA: VER REGISTROS
-// ==========================================
-
 function filtrarVerRegistros() { 
     let input = document.getElementById("buscadorVerRegistros").value.toLowerCase(); 
     document.querySelectorAll(".fila-ver-reg").forEach(fila => { 
@@ -299,7 +282,6 @@ function validarBotonBorrarMasivo() {
     if(btn) {
         btn.disabled = checkeds === 0;
         if(checkeds > 0){
-            // Utilizamos la variable global inyectada desde Django
             btn.innerHTML = `<img src="${URL_ICONO_BASURERO}" width="16" class="me-1 icono-tema"> Borrar (${checkeds})`;
         } else {
             btn.innerHTML = `<img src="${URL_ICONO_BASURERO}" width="16" class="me-1 icono-tema"> Borrar Seleccionados`;
@@ -399,11 +381,6 @@ function validarDescargaExcel() {
     return true; 
 }
 
-
-// ==========================================
-// FUNCIONES PARA: VERIFICAR REGISTROS
-// ==========================================
-
 function filtrarFechasVerificar() { 
     let mes = document.getElementById("filtroMesVerificar").value; 
     let inicio = document.getElementById("filtroInicioVerificar").value; 
@@ -469,7 +446,6 @@ function validarBotonVerificar() {
     if (btn) { 
         if (cantidadSeleccionados > 0) { 
             btn.disabled = false; 
-            // Utilizamos la variable global inyectada desde Django
             btn.innerHTML = `<img src="${URL_ICONO_CHECK}" width="18" style="filter: brightness(0) invert(1);" class="me-1"> Autorizar (${cantidadSeleccionados}) Registros`; 
         } else { 
             btn.disabled = true; 

@@ -7,10 +7,6 @@ document.addEventListener("DOMContentLoaded", function() {
     if(document.getElementById('tablaInventarioEditar')) inicializarFiltrosTabla('tablaInventarioEditar', 'filtro-edit-col-');
 });
 
-// ==========================================
-// 🛠️ CONTROL DE INVENTARIO
-// ==========================================
-
 function toggleAllControl(masterCheck) {
     const checkboxes = document.querySelectorAll('#tablaControl tbody .check-control');
     checkboxes.forEach(chk => {
@@ -96,7 +92,6 @@ function enviarControlInventario() {
                     itemObj[campo] = valor;
                     if (String(valor) !== String(original)) {
                         itemObj.cambios.push(campo);
-                        // Agregamos fila al resumen visual del modal
                         resumenHTML += `
                             <tr>
                                 <td class="fw-bold">${itemObj.nombre_producto}</td>
@@ -115,7 +110,6 @@ function enviarControlInventario() {
 
     if (itemsAEnviar.length === 0) return;
 
-    // Llenar el modal
     const bodyTabla = document.getElementById('bodyResumenCambios');
     if (cambiosDetectados === 0) {
         bodyTabla.innerHTML = '<tr><td colspan="4" class="text-center text-muted fst-italic py-3">Se confirmarán los registros seleccionados sin cambios en sus valores.</td></tr>';
@@ -123,14 +117,11 @@ function enviarControlInventario() {
         bodyTabla.innerHTML = resumenHTML;
     }
 
-    // Guardar JSON en input oculto
     document.getElementById('inputControlData').value = JSON.stringify(itemsAEnviar);
 
-    // Abrir Modal (Bootstrap 5)
     new bootstrap.Modal(document.getElementById('modalConfirmarControl')).show();
 }
 
-// Nueva función para el botón dentro del Modal
 function submitControlFinal() {
     const pass = document.getElementById('passwordConfirmControl').value;
     if (!pass) {
@@ -140,7 +131,6 @@ function submitControlFinal() {
 
     const form = document.getElementById('formControlInventario');
     
-    // Inyectar contraseña en el form
     let passInput = form.querySelector('input[name="password_confirm"]');
     if (!passInput) {
         passInput = document.createElement('input');
@@ -153,16 +143,14 @@ function submitControlFinal() {
     form.submit();
 }
 
-// ==========================================
-// FUNCIONES GENERALES (Modal, Filtros, DragDrop)
-// ==========================================
 
-function abrirModalEditar(id, rowElement) {
+function abrirModalEditar(event, id, rowElement) {
     if (event.target.closest('.dropdown') || event.target.closest('.btn') || event.target.closest('input')) return;
     const datosJSON = rowElement.getAttribute('data-json');
     if (!datosJSON) return;
     const datos = JSON.parse(datosJSON);
-    document.getElementById('tituloModalProducto').innerText = datos['Producto'] || "Registro";
+    const nombreProducto = datos['Producto'] || "Registro";
+    document.getElementById('tituloModalProducto').innerText = nombreProducto;
     document.getElementById('input_doc_id').value = id;
     document.querySelectorAll('#formEditarDinamico input[data-campo-nombre]').forEach(input => {
         let nombre = input.getAttribute('data-campo-nombre');
@@ -222,7 +210,6 @@ function inicializarFiltrosTabla(tablaId, prefijo) {
         menu.innerHTML = html;
     }
     
-    // Delegación de eventos (simplificada)
     tabla.closest('.table-responsive').addEventListener('change', function(e) {
         if (e.target.classList.contains('select-all-col')) {
             let col = e.target.dataset.col;
@@ -234,7 +221,6 @@ function inicializarFiltrosTabla(tablaId, prefijo) {
     });
 }
 
-// Drag & Drop simplificado
 let isReordering = false;
 function toggleReorderMode() {
     isReordering = !isReordering;
